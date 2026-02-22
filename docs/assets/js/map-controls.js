@@ -1,10 +1,50 @@
 (function(){
+      try { window.__MS_CONTROLS_READY = true; } catch(e) {}
       var SPECIES_COLORS_JS = {"Mauersegler": "#1f78b4", "Sperling": "#33a02c", "Schwalbe": "#6a3d9a", "Fledermaus": "#000000", "Star": "#b15928", "Andere": "#ff7f00"};
       var STATUS_INFO_JS = {"verloren": {"label": "Nicht mehr", "color": "#616161", "short": "×"}, "sanierung": {"label": "Sanierung", "color": "#e31a1c", "short": "S"}, "ersatz": {"label": "Ersatzmaßn.", "color": "#00897b", "short": "E"}, "kontrolle": {"label": "Kontrolle", "color": "#1976d2", "short": "K"}, "none": {"label": "Ohne Status", "color": "#9e9e9e", "short": "—"}};
       var ALL_SPECIES = Object.keys(SPECIES_COLORS_JS);
       var ALL_STATUS = Object.keys(STATUS_INFO_JS);
       // Cluster-aware filtering support (always AND across groups)
-      var MS = { map:null, cluster:null, markers:[], ready:false };
+      var MS = { map:null, cluster:null, markers:[], ready:false, userMarker:null, userAccuracyCircle:null, locationBound:false, locationToastTimer:null, locateControl:null, popupVisible:false };
+      function syncViewportCssVars(){
+        var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+        if(vh > 0){
+          document.documentElement.style.setProperty('--ms-vh', (vh * 0.01) + 'px');
+        }
+      }
+      function isCompactViewport(){
+        try{
+          if(window.matchMedia){ return window.matchMedia('(max-width: 600px)').matches; }
+        }catch(e){}
+        return !!(window.innerWidth && window.innerWidth <= 600);
+      }
+      function getControlElement(){
+        return document.getElementById('ms-control');
+      }
+      function isModalOpenById(id){
+        var modal = document.getElementById(id);
+        return !!(modal && !modal.classList.contains('ms-hidden'));
+      }
+      function hasVisibleMapPopup(){
+        if(MS && typeof MS.popupVisible === 'boolean'){ return MS.popupVisible; }
+        return !!document.querySelector('.leaflet-popup-pane .leaflet-popup');
+      }
+      function syncMobileControlVisibility(forceShow){
+        var ctrl = getControlElement();
+        if(!ctrl){ return; }
+        if(!isCompactViewport()){ ctrl.classList.remove('ms-overlay-hidden'); return; }
+        if(forceShow === true){ ctrl.classList.remove('ms-overlay-hidden'); return; }
+        var shouldHide = isModalOpenById('ms-info-modal') || isModalOpenById('ms-submit-modal') || hasVisibleMapPopup();
+        ctrl.classList.toggle('ms-overlay-hidden', shouldHide);
+      }
+      syncViewportCssVars();
+      window.addEventListener('resize', syncViewportCssVars, { passive: true });
+      window.addEventListener('orientationchange', syncViewportCssVars, { passive: true });
+      window.addEventListener('resize', syncMobileControlVisibility, { passive: true });
+      window.addEventListener('orientationchange', syncMobileControlVisibility, { passive: true });
+      if(window.visualViewport && typeof window.visualViewport.addEventListener === 'function'){
+        window.visualViewport.addEventListener('resize', syncViewportCssVars, { passive: true });
+      }
       function resolveMapAndCluster(cb){
         function tryResolve(){
           var mapVarName = Object.keys(window).find(function(k){ return /^map_/.test(k); });
@@ -40,6 +80,142 @@
         });
         MS.ready = true;
       }
+      function removeUserLocationLayers(){
+        if(MS.map && MS.userMarker){ try{ MS.map.removeLayer(MS.userMarker); }catch(e){} }
+        if(MS.map && MS.userAccuracyCircle){ try{ MS.map.removeLayer(MS.userAccuracyCircle); }catch(e){} }
+        MS.userMarker = null;
+        MS.userAccuracyCircle = null;
+      }
+      function updateUserLocationLayers(latlng, accuracy){
+        if(!MS.map || !latlng){ return; }
+        removeUserLocationLayers();
+        try{
+          MS.userMarker = L.circleMarker(latlng, {
+            radius: 7,
+            color: '#ffffff',
+            weight: 2,
+            fillColor: '#1976d2',
+            fillOpacity: 1,
+            interactive: false
+          }).addTo(MS.map);
+          MS.userAccuracyCircle = L.circle(latlng, {
+            radius: Math.max(10, Number(accuracy) || 0),
+            color: '#1976d2',
+            weight: 1,
+            fillColor: '#1976d2',
+            fillOpacity: 0.12,
+            interactive: false
+          }).addTo(MS.map);
+        }catch(e){}
+      }
+      function showMobileLocationToast(message){
+        if(!isCompactViewport()){ return; }
+        var toast = document.getElementById('ms-location-toast');
+        if(!toast){
+          toast = document.createElement('div');
+          toast.id = 'ms-location-toast';
+          toast.setAttribute('role', 'status');
+          toast.setAttribute('aria-live', 'polite');
+          toast.style.position = 'fixed';
+          toast.style.left = '50%';
+          toast.style.bottom = 'calc(16px + env(safe-area-inset-bottom, 0px))';
+          toast.style.transform = 'translate(-50%, 8px)';
+          toast.style.maxWidth = 'calc(100vw - 28px)';
+          toast.style.padding = '8px 12px';
+          toast.style.borderRadius = '10px';
+          toast.style.background = 'rgba(33,33,33,0.92)';
+          toast.style.color = '#fff';
+          toast.style.fontSize = '12px';
+          toast.style.lineHeight = '1.35';
+          toast.style.zIndex = '10020';
+          toast.style.boxShadow = '0 8px 22px rgba(0,0,0,0.22)';
+          toast.style.opacity = '0';
+          toast.style.transition = 'opacity .18s ease, transform .18s ease';
+          document.body.appendChild(toast);
+        }
+        toast.textContent = message || 'Standort konnte nicht ermittelt werden.';
+        toast.style.opacity = '1';
+        toast.style.transform = 'translate(-50%, 0)';
+        if(MS.locationToastTimer){ clearTimeout(MS.locationToastTimer); }
+        MS.locationToastTimer = setTimeout(function(){
+          toast.style.opacity = '0';
+          toast.style.transform = 'translate(-50%, 8px)';
+        }, 3600);
+      }
+      function ensureLocationBindings(){
+        if(!MS.map || MS.locationBound){ return; }
+        MS.locationBound = true;
+        MS.map.on('locationfound', function(e){
+          updateUserLocationLayers(e.latlng, e.accuracy);
+        });
+        MS.map.on('locationerror', function(e){
+          var msg = 'Standort konnte nicht ermittelt werden.';
+          if(e && e.code === 1){ msg = 'Standortfreigabe fehlt. Bitte im Browser erlauben.'; }
+          else if(e && e.code === 2){ msg = 'Standort derzeit nicht verfügbar.'; }
+          else if(e && e.code === 3){ msg = 'Standortabfrage hat zu lange gedauert.'; }
+          showMobileLocationToast(msg);
+          try{ console.warn('Geolocation unavailable:', e && e.message ? e.message : e); }catch(err){}
+        });
+      }
+      function requestUserLocation(){
+        if(!MS.map){ return; }
+        if(!navigator.geolocation || typeof MS.map.locate !== 'function'){
+          showMobileLocationToast('Standortfunktion wird vom Browser nicht unterstützt.');
+          return;
+        }
+        ensureLocationBindings();
+        try{
+          MS.map.locate({
+            setView: true,
+            maxZoom: 17,
+            enableHighAccuracy: true,
+            timeout: 12000,
+            maximumAge: 60000
+          });
+        }catch(e){}
+      }
+      function addLocateMapControl(){
+        if(!MS.map || MS.locateControl || !L || typeof L.control !== 'function'){ return; }
+        var LocateControl = L.Control.extend({
+          options: { position: 'bottomright' },
+          onAdd: function(){
+            var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            var button = L.DomUtil.create('a', '', container);
+            button.href = '#';
+            button.title = 'Meinen Standort anzeigen';
+            button.setAttribute('aria-label', 'Meinen Standort anzeigen');
+            button.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm8.94 3h-1.99A7.02 7.02 0 0 0 13 5.05V3.06a1 1 0 1 0-2 0v1.99A7.02 7.02 0 0 0 5.05 11H3.06a1 1 0 1 0 0 2h1.99A7.02 7.02 0 0 0 11 18.95v1.99a1 1 0 1 0 2 0v-1.99A7.02 7.02 0 0 0 18.95 13h1.99a1 1 0 1 0 0-2zM12 17a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"></path></svg>';
+            button.style.width = '34px';
+            button.style.height = '34px';
+            button.style.display = 'flex';
+            button.style.alignItems = 'center';
+            button.style.justifyContent = 'center';
+            button.style.background = '#fff';
+            button.style.color = '#1976d2';
+            button.style.textDecoration = 'none';
+            button.style.borderBottom = 'none';
+            L.DomEvent.disableClickPropagation(container);
+            L.DomEvent.on(button, 'click', function(ev){
+              L.DomEvent.stop(ev);
+              requestUserLocation();
+            });
+            return container;
+          }
+        });
+        MS.locateControl = new LocateControl();
+        MS.map.addControl(MS.locateControl);
+        try{
+          var locateEl = MS.locateControl.getContainer && MS.locateControl.getContainer();
+          var zoomEl = MS.map.zoomControl && MS.map.zoomControl.getContainer && MS.map.zoomControl.getContainer();
+          if(locateEl && zoomEl && locateEl.parentNode && locateEl.parentNode === zoomEl.parentNode){
+            locateEl.parentNode.insertBefore(locateEl, zoomEl);
+          }
+        }catch(e){}
+      }
+      function autoLocateOnMobile(){
+        if(!MS.map || !isCompactViewport()){ return; }
+        requestUserLocation();
+      }
       // More info modal toggle (desktop + mobile sheet)
       (function(){
         var togDesktop = document.getElementById('ms-more-info-toggle');
@@ -51,10 +227,12 @@
           if(ev){ ev.preventDefault(); }
           if(sheet){ sheet.classList.remove('open'); }
           if(modal){ modal.classList.remove('ms-hidden'); }
+          syncMobileControlVisibility();
         }
         function closeModal(){
           if(modal){ modal.classList.add('ms-hidden'); }
           if(sheet){ sheet.classList.remove('open'); }
+          syncMobileControlVisibility();
         }
         if(togDesktop){ togDesktop.addEventListener('click', openModal); }
         if(togSheet){ togSheet.addEventListener('click', openModal); }
@@ -72,11 +250,16 @@
         var submitClose = document.getElementById('ms-submit-close');
         var submitCancel = document.getElementById('ms-submit-cancel');
         var sheet = document.getElementById('ms-bottom-sheet');
-        function openSubmit(ev){ if(ev){ ev.preventDefault(); } if(sheet){ sheet.classList.remove('open'); } if(submitModal){ submitModal.classList.remove('ms-hidden'); } }
-        function closeSubmit(){ if(submitModal){ submitModal.classList.add('ms-hidden'); } }
+        function openSubmit(ev){ if(ev){ ev.preventDefault(); } if(sheet){ sheet.classList.remove('open'); } if(submitModal){ submitModal.classList.remove('ms-hidden'); } syncMobileControlVisibility(); }
+        function closeSubmit(){ if(submitModal){ submitModal.classList.add('ms-hidden'); } syncMobileControlVisibility(); }
         if(submitBtn){ submitBtn.addEventListener('click', openSubmit); }
         var submitSheetBtn = document.getElementById('ms-submit-btn-sheet');
         if(submitSheetBtn){ submitSheetBtn.addEventListener('click', openSubmit); }
+        document.addEventListener('click', function(ev){
+          var trigger = ev && ev.target && ev.target.closest ? ev.target.closest('#ms-submit-btn, #ms-submit-btn-sheet') : null;
+          if(!trigger){ return; }
+          openSubmit(ev);
+        }, true);
         function isActuallyVisible(el){
           if(!el) return false;
           // getClientRects is empty when display:none or not in layout
@@ -298,8 +481,12 @@
         }
         // Filter button toggles desktop box or opens mobile sheet
         if(openBtnClicked){
-          if(window.innerWidth && window.innerWidth <= 600){
-            if(sheet){ sheet.classList.toggle('open'); }
+          syncMobileControlVisibility(true);
+          if(isCompactViewport()){
+            if(sheet){
+              sheet.classList.toggle('open');
+              if(!sheet.classList.contains('open')){ syncMobileControlVisibility(); }
+            }
           } else {
             if(ctrl){
               ctrl.classList.toggle('collapsed');
@@ -362,7 +549,26 @@
         document.addEventListener('touchstart', closeIfMapTap, {passive:true});
       })();
       // initial pass
-      resolveMapAndCluster(function(map, cluster){ MS.map = map; MS.cluster = cluster; initMarkers(); });
+      resolveMapAndCluster(function(map, cluster){
+        MS.map = map;
+        MS.cluster = cluster;
+        initMarkers();
+        addLocateMapControl();
+        if(MS.map && typeof MS.map.on === 'function'){
+          MS.map.on('popupopen', function(){ MS.popupVisible = true; syncMobileControlVisibility(); });
+          MS.map.on('popupclose', function(){ MS.popupVisible = false; setTimeout(syncMobileControlVisibility, 0); });
+          MS.map.on('click', function(){
+            setTimeout(function(){
+              if(!document.querySelector('.leaflet-popup-pane .leaflet-popup')){
+                MS.popupVisible = false;
+                syncMobileControlVisibility();
+              }
+            }, 0);
+          });
+        }
+        syncMobileControlVisibility();
+        autoLocateOnMobile();
+      });
       buildFilters();
       wireFilters();
       setTimeout(function(){ var selectedSpecies = Object.keys(SPECIES_COLORS_JS); var selectedStatus = Object.keys(STATUS_INFO_JS); rebuildCluster(selectedSpecies, selectedStatus); }, 250);
