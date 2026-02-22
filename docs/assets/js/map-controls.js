@@ -552,12 +552,68 @@
       resolveMapAndCluster(function(map, cluster){
         MS.map = map;
         MS.cluster = cluster;
+        try{
+          if(MS.map && MS.map.options){ MS.map.options.closePopupOnClick = false; }
+        }catch(e){}
         initMarkers();
         addLocateMapControl();
         if(MS.map && typeof MS.map.on === 'function'){
-          MS.map.on('popupopen', function(){ MS.popupVisible = true; syncMobileControlVisibility(); });
+          MS.map.on('popupopen', function(e){
+            MS.popupVisible = true; syncMobileControlVisibility();
+            try{
+              if(e && e.popup && e.popup.options){
+                e.popup.options.closeOnClick = false;
+                e.popup.options.autoClose = false;
+              }
+              var popupEl = null;
+              if(e && e.popup){
+                if(typeof e.popup.getElement === 'function'){ popupEl = e.popup.getElement(); }
+                else if(e.popup._container){ popupEl = e.popup._container; }
+              }
+              if(!popupEl){ popupEl = document.querySelector('.leaflet-popup'); }
+              var viewportH = 0;
+              try{
+                viewportH = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : (window.innerHeight || document.documentElement.clientHeight || 0);
+              }catch(err){ viewportH = (window.innerHeight || 0); }
+              if(popupEl && viewportH > 0){
+                var popupWrapper = popupEl.querySelector('.leaflet-popup-content-wrapper');
+                var popupContent = popupEl.querySelector('.leaflet-popup-content');
+                var wrapperMax = Math.max(180, Math.floor(viewportH * 0.78));
+                var contentMax = Math.max(140, Math.floor(viewportH * 0.66));
+                if(popupWrapper){
+                  popupWrapper.style.maxHeight = wrapperMax + 'px';
+                  popupWrapper.style.overflow = 'hidden';
+                }
+                if(popupContent){
+                  popupContent.style.maxHeight = contentMax + 'px';
+                  popupContent.style.overflowY = 'auto';
+                  popupContent.style.overflowX = 'hidden';
+                  popupContent.style.webkitOverflowScrolling = 'touch';
+                  popupContent.style.overscrollBehavior = 'contain';
+                  popupContent.style.touchAction = 'pan-y';
+                }
+              }
+              if(popupEl && window.L && L.DomEvent){
+                try{ L.DomEvent.disableClickPropagation(popupEl); }catch(err){}
+                try{ L.DomEvent.disableScrollPropagation(popupEl); }catch(err){}
+              }
+              if(popupEl){
+                ['touchstart','touchmove','touchend','pointerdown','pointermove','wheel'].forEach(function(evName){
+                  try{ popupEl.addEventListener(evName, function(ev){ ev.stopPropagation(); }, { passive: false }); }catch(err){}
+                });
+              }
+            }catch(err){}
+          });
           MS.map.on('popupclose', function(){ MS.popupVisible = false; setTimeout(syncMobileControlVisibility, 0); });
-          MS.map.on('click', function(){
+          MS.map.on('click', function(ev){
+            try{
+              var target = ev && ev.originalEvent ? ev.originalEvent.target : null;
+              if(!target){ return; }
+              if(target.closest && target.closest('.leaflet-popup')){ return; }
+              if(target.closest && target.closest('.leaflet-container')){
+                if(MS.map && typeof MS.map.closePopup === 'function'){ MS.map.closePopup(); }
+              }
+            }catch(err){}
             setTimeout(function(){
               if(!document.querySelector('.leaflet-popup-pane .leaflet-popup')){
                 MS.popupVisible = false;
