@@ -1,4 +1,30 @@
+from html import escape
+import re
 from urllib.parse import quote
+
+
+_DATE_TOKEN_RE = re.compile(r'(?<![-‐‑‒–—])(?<![-‐‑‒–—]\s)(?:^|\s)((?:19|20)\d{2}(?:(?:[-/.]\d{2})(?:/\d{2})?|/(?:19|20)\d{2})?)(?=\b|\s)')
+
+
+def _format_beschreibung_html(text):
+    raw = (text or '').strip()
+    if not raw:
+        return '—'
+    compact = re.sub(r'\s+', ' ', raw)
+    matches = list(_DATE_TOKEN_RE.finditer(compact))
+    if matches:
+        chunks = []
+        for idx, match in enumerate(matches):
+            date_token = match.group(1).strip()
+            body_start = match.end(1)
+            body_end = matches[idx + 1].start(1) if idx + 1 < len(matches) else len(compact)
+            body = compact[body_start:body_end].strip(' -:;,.')
+            chunks.append(
+                f'<p class="gb-desc-entry"><span class="gb-desc-date">{escape(date_token)}</span><br/>{escape(body) if body else "—"}</p>'
+            )
+        if chunks:
+            return '<div class="gb-desc-list">' + ''.join(chunks) + '</div>'
+    return '<div class="gb-desc-plain">' + escape(compact) + '</div>'
 
 
 def _berlin_plz_ok(row):
@@ -109,12 +135,13 @@ def build_marker_payload(
     status_text = ', '.join(status_names) if status_names else '—'
 
     addr_field = _address_field(row)
+    beschreibung_html = _format_beschreibung_html(row['beschreibung'])
     popup_html = (
         f"<b>Arten</b><br/>{fund_text}"
         f"<br/><br/><b>Status</b><br/>{status_text}"
         f"<br/><br/><b>Adresse</b><br/>{addr_field}, {row['plz']} {row['ort']}"
         f"<br/><br/><b>Erstbeobachtung</b><br/>{(str(row['erstbeobachtung']) if row['erstbeobachtung'] else 'unbekannt')}"
-        f"<br/><br/><b>Beschreibung</b><br/>{(row['beschreibung'] or '')}"
+        f"<br/><br/><b>Beschreibung</b><br/>{beschreibung_html}"
         f"<br/><br/><b>Link zur Datenbank</b><br/><a href={url}?ID={row['web_id']}>{row['web_id']}</a>"
     )
     popup_html = _append_mailto_report_link(

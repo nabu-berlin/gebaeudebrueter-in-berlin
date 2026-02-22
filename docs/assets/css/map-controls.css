@@ -39,12 +39,17 @@
       --ms-shadow: 0 6px 18px rgba(0,0,0,0.12);
       --ms-accent: #1976d2;
       --ms-focus: #2684ff;
+      --ms-safe-top: env(safe-area-inset-top, 0px);
+      --ms-safe-right: env(safe-area-inset-right, 0px);
+      --ms-safe-bottom: env(safe-area-inset-bottom, 0px);
+      --ms-safe-left: env(safe-area-inset-left, 0px);
+      --ms-vh: 1vh;
     }
     /* Control box (desktop + mobile pinned top-right) */
     .ms-control {
       position: fixed;
-      top: 10px;
-      right: 10px;
+      top: calc(10px + var(--ms-safe-top));
+      right: calc(10px + var(--ms-safe-right));
       left: auto;
       background: var(--ms-bg);
       padding: var(--ms-padding);
@@ -55,7 +60,7 @@
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       width: var(--ms-width);
       max-width: var(--ms-max-width-vw);
-      max-height: 80vh;
+      max-height: min(80vh, calc(var(--ms-vh) * 80));
       overflow: auto;
       box-sizing: border-box;
       display: flex;
@@ -85,12 +90,12 @@
     /* Filter button: blue border when control is expanded, transparent when collapsed */
     .ms-control:not(.collapsed) .ms-open-sheet-btn { border-color: var(--ms-accent); box-shadow: 0 6px 18px rgba(25,118,210,0.08); }
     .ms-control.collapsed .ms-open-sheet-btn { border-color: rgba(0,0,0,0.12); box-shadow: none; }
-    .ms-control button, .ms-control .ms-open-sheet-btn, .ms-control .ms-toggle { transition: background .15s, box-shadow .12s, transform .08s; }
+    .ms-control button, .ms-control .ms-open-sheet-btn, .ms-control .ms-toggle { transition: background .15s, box-shadow .12s, transform .08s; touch-action: manipulation; }
     .ms-control button:focus, .ms-control .ms-open-sheet-btn:focus, .ms-control .ms-toggle:focus { outline: 2px solid var(--ms-focus); outline-offset: 2px; }
     .ms-toggle .arrow { display:none !important; transition: transform .15s ease; }
     .ms-toggle.open .arrow { transform: rotate(90deg); }
-    .ms-modal { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.45); z-index:10000; display:flex; align-items:center; justify-content:center; }
-    .ms-modal-content { background: #fff; padding: 18px 22px; border-radius:10px; max-width:700px; width:calc(100% - 40px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); position:relative; }
+    .ms-modal { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.45); z-index:10020; display:flex; align-items:center; justify-content:center; padding: calc(10px + var(--ms-safe-top)) calc(10px + var(--ms-safe-right)) calc(10px + var(--ms-safe-bottom)) calc(10px + var(--ms-safe-left)); box-sizing: border-box; }
+    .ms-modal-content { background: #fff; padding: 18px 22px; border-radius:10px; max-width:700px; width:calc(100% - 40px); max-height: calc(var(--ms-vh) * 90); overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.2); position:relative; }
     .ms-modal-close { position:absolute; top:8px; right:8px; border:none; background:transparent; font-size:18px; cursor:pointer; }
     .ms-modal-body { font-size:14px; line-height:1.6; }
     .ms-modal-title { font-weight: 700; }
@@ -100,15 +105,15 @@
     .ms-modal-image { flex:1 1 30%; display:flex; align-items:flex-start; justify-content:flex-end; }
     .ms-modal-logo-lg { max-width:180px; max-height:120px; height:auto; width:auto; border-radius:6px; }
     /* Bottom-sheet for mobile filters */
-    .ms-bottom-sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 80vh; background: #fff; box-shadow: 0 -8px 24px rgba(0,0,0,0.18); border-top-left-radius: 12px; border-top-right-radius: 12px; transform: translateY(100%); transition: transform .28s ease; z-index: 10004; overflow: auto; }
+    .ms-bottom-sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: min(80vh, calc(var(--ms-vh) * 80)); background: #fff; box-shadow: 0 -8px 24px rgba(0,0,0,0.18); border-top-left-radius: 12px; border-top-right-radius: 12px; transform: translateY(100%); transition: transform .28s ease; z-index: 10004; overflow: auto; padding-bottom: var(--ms-safe-bottom); box-sizing: border-box; }
     .ms-bottom-sheet.open { transform: translateY(0%); }
     .ms-sheet-header { display:flex; align-items:center; justify-content:space-between; padding: 12px 16px; border-bottom:1px solid #eee; }
     .ms-sheet-handle { width:36px; height:4px; background:#ddd; border-radius:4px; margin:8px auto; }
     .ms-accordion-toggle { width:100%; text-align:left; padding:10px 14px; border:none; background:transparent; font-size:15px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; }
     .ms-accordion-content { padding: 6px 14px 12px 14px; display:none; }
     .ms-accordion-content.open { display:block; }
-    .ms-sheet-actions { padding:12px 16px; border-top:1px solid #eee; display:flex; align-items:center; justify-content:space-between; gap:8px; }
-    .ms-sheet-actions button { padding:8px 12px; border-radius:6px; border:1px solid #1976d2; background:#1976d2; color:white; cursor:pointer; }
+    .ms-sheet-actions { padding:12px 16px; border-top:1px solid #eee; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+    .ms-sheet-actions button { padding:8px 12px; border-radius:6px; border:1px solid #1976d2; background:#1976d2; color:white; cursor:pointer; min-height: 40px; }
     .ms-control h4 { margin: 0 0 6px 0; font-size: 13px; }
     .ms-section { background:#f7f7f7; border-radius:8px; padding:8px 10px; margin-top:8px; }
     .ms-row { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; margin: 6px 0; }
@@ -199,6 +204,7 @@
       min-width: 0;
       box-sizing: border-box;
       justify-content: center;
+      min-height: 40px;
     }
     .ms-col-center-gap6 { margin-top: 2px; }
     .ms-col-center-gap6 .ms-row-center,
@@ -265,7 +271,8 @@
     .ms-control::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius:6px; }
     @media (max-width: 600px) {
       /* Pin control to top-right on mobile but show compact header and filter button */
-      .ms-control { top: 10px; right: 10px; left: auto; bottom: auto; max-width: 92vw; border-radius: 10px; padding: 8px 10px; }
+      .ms-control { top: calc(10px + var(--ms-safe-top)); right: calc(10px + var(--ms-safe-right)); left: auto; bottom: auto; max-width: calc(100vw - 20px - var(--ms-safe-left) - var(--ms-safe-right)); border-radius: 10px; padding: 8px 10px; }
+      .ms-control.ms-overlay-hidden { opacity: 0; transform: translateY(-8px); pointer-events: none; }
       .ms-control-header { align-items: flex-start; gap: 6px; }
       .ms-top-header { flex: 1 1 auto; min-width: 0; }
       .ms-title-main { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
@@ -278,7 +285,7 @@
       /* ensure bottom-sheet is above most elements */
       .ms-bottom-sheet { z-index: 10005; }
       /* Modal layout adjustments for small screens: stack content and center logo */
-      .ms-modal-content { max-width: 92vw; width: calc(100% - 24px); padding: 14px 16px; }
+      .ms-modal-content { max-width: 92vw; width: calc(100% - 24px); max-height: calc(var(--ms-vh) * 88); padding: 14px 16px; }
       .ms-modal-row { flex-direction: column; gap: 12px; }
       .ms-modal-image { flex: 0 0 auto; display:flex; justify-content:center; align-items:center; order: -1; }
       .ms-modal-text { flex: 1 1 100%; }
@@ -297,11 +304,25 @@
         box-shadow: none;
         background: rgba(25,118,210,0.08);
       }
+
+      .leaflet-popup-content .gb-desc-list { margin-top: 4px; }
+      .leaflet-popup-content .gb-desc-entry { margin: 0.5em 0 0; line-height: 1.45; }
+      .leaflet-popup-content .gb-desc-date { font-weight: 700; color: #1f2937; }
+      .leaflet-popup-content .gb-desc-plain { margin-top: 4px; line-height: 1.45; }
+      .leaflet-popup { max-width: calc(100vw - 16px) !important; }
+      .leaflet-popup-content-wrapper { max-height: calc(var(--ms-vh, 1vh) * 78); overflow: hidden; }
+      .leaflet-popup-content { max-width: calc(100vw - 48px) !important; max-height: calc(var(--ms-vh, 1vh) * 66); overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; overflow-wrap: anywhere; word-break: break-word; }
+    }
+    @media (max-width: 359px) {
+      .leaflet-popup { max-width: calc(100vw - 10px) !important; }
+      .leaflet-popup-content-wrapper { padding: 4px 6px; border-radius: 10px; }
+      .leaflet-popup-content { max-width: calc(100vw - 28px) !important; margin: 8px 8px; font-size: 12px; line-height: 1.35; }
+      .leaflet-popup-content b { font-size: 12px; }
     }
 
-.gb-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:99999;}
+.gb-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:99999;padding:calc(10px + var(--ms-safe-top, 0px)) calc(10px + var(--ms-safe-right, 0px)) calc(10px + var(--ms-safe-bottom, 0px)) calc(10px + var(--ms-safe-left, 0px));box-sizing:border-box;}
 .gb-modal-overlay.gb-open{display:flex;}
-.gb-modal{background:#fff;border-radius:10px;max-width:420px;width:calc(100vw - 32px);box-shadow:0 10px 30px rgba(0,0,0,.25);padding:14px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
+.gb-modal{background:#fff;border-radius:10px;max-width:420px;width:calc(100vw - 32px);max-height:calc(var(--ms-vh, 1vh) * 88);overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:14px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
 .gb-modal h3{margin:0 0 8px 0;font-size:16px;}
 .gb-modal p{margin:0 0 10px 0;font-size:13px;line-height:1.35;color:#333;}
 .gb-modal label{display:block;font-size:12px;color:#333;margin:8px 0 4px;}

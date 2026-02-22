@@ -3,6 +3,7 @@ import folium
 from folium import plugins
 import sys
 import importlib
+import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +40,39 @@ CONFIG = {
 
 DB_PATH = CONFIG['DB_PATH']
 OUTPUT_HTML = CONFIG['OUTPUT_HTML']
+
+
+def harden_viewport_meta(path):
+  html = path.read_text(encoding='utf-8')
+  pattern = re.compile(r'(<meta\s+name="viewport"\s+content=")([^"]*)("\s*/?>)', re.IGNORECASE)
+  match = pattern.search(html)
+  if not match:
+    return
+
+  existing_raw = match.group(2)
+  existing_parts = [part.strip() for part in existing_raw.split(',') if part.strip()]
+  filtered_parts = []
+  for part in existing_parts:
+    lowered = part.lower()
+    if lowered.startswith('maximum-scale='):
+      continue
+    if lowered.startswith('minimum-scale='):
+      continue
+    if lowered.startswith('user-scalable='):
+      continue
+    filtered_parts.append(part)
+
+  if not any(part.lower().startswith('width=') for part in filtered_parts):
+    filtered_parts.insert(0, 'width=device-width')
+  if not any(part.lower().startswith('initial-scale=') for part in filtered_parts):
+    filtered_parts.append('initial-scale=1.0')
+  if not any(part.lower().startswith('viewport-fit=') for part in filtered_parts):
+    filtered_parts.append('viewport-fit=cover')
+
+  replacement = match.group(1) + ', '.join(filtered_parts) + match.group(3)
+  updated = html[:match.start()] + replacement + html[match.end():]
+  if updated != html:
+    path.write_text(updated, encoding='utf-8')
 
 
 def main():
@@ -99,6 +133,7 @@ def main():
   inject_map_ui(m, controls_html, stand_display, count)
 
   m.save(OUTPUT_HTML)
+  harden_viewport_meta(Path(OUTPUT_HTML))
   conn.close()
 
 
