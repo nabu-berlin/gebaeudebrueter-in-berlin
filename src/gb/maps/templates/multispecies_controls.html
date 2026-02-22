@@ -268,11 +268,15 @@
     @media (max-width: 600px) {
       /* Pin control to top-right on mobile but show compact header and filter button */
       .ms-control { top: 10px; right: 10px; left: auto; bottom: auto; max-width: 92vw; border-radius: 10px; padding: 8px 10px; }
+      .ms-control-header { align-items: flex-start; gap: 6px; }
+      .ms-top-header { flex: 1 1 auto; min-width: 0; }
+      .ms-title-main { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+      .ms-right-header { flex: 0 0 auto; align-items: flex-end; }
       .ms-control.collapsed { height: auto; overflow: visible; }
       .ms-control.collapsed .ms-row, .ms-control.collapsed .ms-section { display: none !important; }
       .ms-control .ms-toggle { display: none; }
       .ms-control .ms-reset-wrap { display: none; }
-      .ms-open-sheet-btn { display:inline-block; }
+      .ms-open-sheet-btn { display:inline-block; width:auto; min-width:0; max-width:100%; }
       /* ensure bottom-sheet is above most elements */
       .ms-bottom-sheet { z-index: 10005; }
       /* Modal layout adjustments for small screens: stack content and center logo */
