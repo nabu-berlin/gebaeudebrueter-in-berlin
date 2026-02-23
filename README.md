@@ -2,6 +2,9 @@
 
 Dieses Repository enthält nur die statischen Dateien für die Veröffentlichung der Karte über GitHub Pages.
 
+Quelle der in der Karte angezeigten Daten ist die Online-Datenbank "Gebäudebrüter in Berlin" des Projekts Gebäudebrüter im NABU Landesverband un der NABU Bezirksgruppe Steglitz-Zehlendorf.
+ULR: http://gebaeudebrueter-in-berlin.de/index.php
+
 ## Inhalt
 
 - `docs/index.html` (Weiterleitung)
