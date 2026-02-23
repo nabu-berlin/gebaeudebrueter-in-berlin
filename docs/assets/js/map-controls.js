@@ -444,6 +444,10 @@
             var swatch = document.createElement('span'); swatch.className = 'ms-filter-swatch ms-filter-swatch-status'; swatch.style.borderColor = info.color;
             wrap.appendChild(cb);
             var value = document.createElement('span'); value.className = 'ms-value'; value.textContent = info.label;
+            if(key === 'verloren'){
+              value.style.whiteSpace = 'nowrap';
+              swatch.style.marginLeft = '2px';
+            }
             wrap.appendChild(value);
             wrap.appendChild(swatch);
             return wrap;
