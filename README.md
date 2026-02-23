@@ -15,7 +15,7 @@ Dieses Repository enthält nur die statischen Dateien für die Veröffentlichung
 
 Die Datenpipeline (Scraping, Bereinigung, Geocoding, Transformation, Kartengenerierung) wurde ausgelagert nach:
 
-- `../gebauedebrueter-map-generator`
+- `https://github.com/nabu-berlin/gebaeudebrueter-map-generator`
 
 Dort werden neue Karten erzeugt und anschließend nach `docs/` dieses Repositories publiziert.
 
