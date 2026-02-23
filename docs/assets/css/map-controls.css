@@ -264,6 +264,9 @@
     .ms-control::-webkit-scrollbar { width: 8px; }
     .ms-control::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius:6px; }
     @media (max-width: 600px) {
+      .ms-control.ms-overlay-hidden {
+        display: none !important;
+      }
       .leaflet-popup {
         max-width: min(94vw, 450px) !important;
       }
