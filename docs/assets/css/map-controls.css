@@ -265,18 +265,18 @@
     .ms-control::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius:6px; }
     @media (max-width: 600px) {
       .leaflet-popup {
-        max-width: calc(100vw - 16px) !important;
+        max-width: min(94vw, 450px) !important;
       }
       .leaflet-popup-content-wrapper {
-        max-width: calc(100vw - 16px) !important;
+        max-width: min(94vw, 450px) !important;
         box-sizing: border-box;
       }
       .leaflet-popup-content {
-        width: auto !important;
-        max-width: calc(100vw - 48px) !important;
-        margin: 10px 12px;
-        overflow-wrap: anywhere;
-        word-break: break-word;
+        width: min(84vw, 410px) !important;
+        max-width: min(84vw, 410px) !important;
+        margin: 10px 14px;
+        overflow-wrap: break-word;
+        word-break: normal;
       }
       .leaflet-popup-content img {
         max-width: 100%;
