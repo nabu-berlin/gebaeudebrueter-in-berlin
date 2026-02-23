@@ -29,3 +29,6 @@ Dann öffnen:
 
 - `http://localhost:8000/docs/`
 - oder direkt `http://localhost:8000/docs/GebaeudebrueterMultiMarkers.html`
+
+## Feedback
+Anregungen, Kritik und Fehlermeldungen unter "Issues" posten.
