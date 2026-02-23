@@ -264,6 +264,24 @@
     .ms-control::-webkit-scrollbar { width: 8px; }
     .ms-control::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius:6px; }
     @media (max-width: 600px) {
+      .leaflet-popup {
+        max-width: calc(100vw - 16px) !important;
+      }
+      .leaflet-popup-content-wrapper {
+        max-width: calc(100vw - 16px) !important;
+        box-sizing: border-box;
+      }
+      .leaflet-popup-content {
+        width: auto !important;
+        max-width: calc(100vw - 48px) !important;
+        margin: 10px 12px;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      .leaflet-popup-content img {
+        max-width: 100%;
+        height: auto;
+      }
       /* Pin control to top-right on mobile but show compact header and filter button */
       .ms-control { top: 10px; right: 10px; left: auto; bottom: auto; max-width: 92vw; border-radius: 10px; padding: 8px 10px; }
       .ms-control-header { align-items: flex-start; gap: 6px; }
