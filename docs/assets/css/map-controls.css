@@ -495,6 +495,12 @@ body.ms-mobile-redesign .ms-control {
   display: inline-flex;
   justify-content: center;
 }
+.ms-side-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  fill: currentColor;
+}
 
 .ms-fab-filter {
   position: fixed;
