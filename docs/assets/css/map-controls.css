@@ -383,6 +383,15 @@ body.ms-mobile-redesign .ms-control {
   z-index: 10050;
 }
 
+#ms-app-header,
+#ms-side-backdrop,
+#ms-side-sheet,
+#ms-fab-stack,
+.ms-fab-filter,
+.ms-fab-locate {
+  display: none;
+}
+
 .ms-app-header-title { min-width: 0; }
 .ms-app-title { font-size: 14px; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ms-app-stand { font-size: 11px; color: #5f6368; line-height: 1.2; }
@@ -586,11 +595,38 @@ body.ms-side-open {
   .ms-app-title { font-size: 15px; }
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 600px) {
+  #ms-app-header { display: grid; }
+  #ms-side-backdrop { display: block; }
+  #ms-side-sheet { display: flex; }
+  #ms-fab-stack { display: flex; }
+  .ms-fab-filter,
+  .ms-fab-locate { display: inline-flex; }
+
+  #ms-control {
+    display: none !important;
+  }
+
   .leaflet-control-zoom,
   .leaflet-control-locate,
   .leaflet-control a[title*="Standort"],
   .leaflet-control a[aria-label*="Standort"] {
+    display: none !important;
+  }
+}
+
+@media (min-width: 601px) {
+  #ms-control {
+    display: flex !important;
+  }
+
+  #ms-bottom-sheet,
+  #ms-app-header,
+  #ms-side-backdrop,
+  #ms-side-sheet,
+  #ms-fab-stack,
+  .ms-fab-filter,
+  .ms-fab-locate {
     display: none !important;
   }
 }
