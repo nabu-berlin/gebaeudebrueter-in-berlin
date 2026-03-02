@@ -4,6 +4,7 @@
       var STATUS_INFO_JS = {"verloren": {"label": "verlorene Niststätte", "color": "#616161", "short": "×"}, "sanierung": {"label": "Sanierung", "color": "#e31a1c", "short": "S"}, "ersatz": {"label": "Ersatzmaßn.", "color": "#00897b", "short": "E"}, "kontrolle": {"label": "Kontrolle", "color": "#1976d2", "short": "K"}, "none": {"label": "Ohne Status", "color": "#9e9e9e", "short": "—"}};
       var ALL_SPECIES = Object.keys(SPECIES_COLORS_JS);
       var ALL_STATUS = Object.keys(STATUS_INFO_JS);
+      var FEEDBACK_MAILTO = 'mailto:detlefdev@gmail.com?subject=Feedback%20zur%20Karte';
       // Cluster-aware filtering support (always AND across groups)
       var MS = { map:null, cluster:null, markers:[], ready:false, userMarker:null, userAccuracyCircle:null, locationBound:false, locationToastTimer:null, locateControl:null, popupVisible:false };
       var MS_MOBILE_MEDIA = (window.matchMedia ? window.matchMedia('(max-width: 600px)') : null);
@@ -18,6 +19,9 @@
         if(vh > 0){
           document.documentElement.style.setProperty('--ms-vh', (vh * 0.01) + 'px');
         }
+        var safeBottom = 0;
+        try{ safeBottom = window.visualViewport ? Math.max(0, (window.innerHeight || 0) - window.visualViewport.height) : 0; }catch(e){ safeBottom = 0; }
+        document.documentElement.style.setProperty('--ms-safe-bottom-extra', Math.round(safeBottom) + 'px');
       }
       function isCompactViewport(){
         return isMobileView();
@@ -32,6 +36,16 @@
       function hasVisibleMapPopup(){
         if(MS && typeof MS.popupVisible === 'boolean'){ return MS.popupVisible; }
         return !!document.querySelector('.leaflet-popup-pane .leaflet-popup');
+      }
+      function syncHeaderLayeringOverModals(){
+        var header = document.getElementById('ms-app-header');
+        if(!header){ return; }
+        var modalVisible = !!document.querySelector('#ms-info-modal:not(.ms-hidden), #ms-submit-modal:not(.ms-hidden), #ms-placeholder-modal:not(.ms-hidden), #ms-marker-modal:not(.ms-hidden), #gbModalOverlay.gb-open');
+        if(modalVisible){
+          header.style.zIndex = '10090';
+        } else {
+          header.style.removeProperty('z-index');
+        }
       }
       function syncMobileControlVisibility(forceShow){
         var ctrl = getControlElement();
@@ -336,11 +350,13 @@
           if(ev){ ev.preventDefault(); }
           if(sheet){ sheet.classList.remove('open'); }
           if(modal){ modal.classList.remove('ms-hidden'); }
+          syncHeaderLayeringOverModals();
           syncMobileControlVisibility();
         }
         function closeModal(){
           if(modal){ modal.classList.add('ms-hidden'); }
           if(sheet){ sheet.classList.remove('open'); }
+          syncHeaderLayeringOverModals();
           syncMobileControlVisibility();
         }
         if(togDesktop){ togDesktop.addEventListener('click', openModal); }
@@ -360,7 +376,8 @@
         var submitCancel = document.getElementById('ms-submit-cancel');
         var sheet = document.getElementById('ms-bottom-sheet');
         function openSubmit(ev){ if(ev){ ev.preventDefault(); } if(sheet){ sheet.classList.remove('open'); } if(submitModal){ submitModal.classList.remove('ms-hidden'); } syncMobileControlVisibility(); }
-        function closeSubmit(){ if(submitModal){ submitModal.classList.add('ms-hidden'); } syncMobileControlVisibility(); }
+        function openSubmit(ev){ if(ev){ ev.preventDefault(); } if(sheet){ sheet.classList.remove('open'); } if(submitModal){ submitModal.classList.remove('ms-hidden'); } syncHeaderLayeringOverModals(); syncMobileControlVisibility(); }
+        function closeSubmit(){ if(submitModal){ submitModal.classList.add('ms-hidden'); } syncHeaderLayeringOverModals(); syncMobileControlVisibility(); }
         if(submitBtn){ submitBtn.addEventListener('click', openSubmit); }
         var submitSheetBtn = document.getElementById('ms-submit-btn-sheet');
         if(submitSheetBtn){ submitSheetBtn.addEventListener('click', openSubmit); }
@@ -656,13 +673,18 @@
         });
 
         var resetBtn = document.getElementById('ms-reset');
+        var resetSheetBtn = document.getElementById('ms-reset-sheet');
+        function resetFiltersToAll(){
+          document.querySelectorAll('.ms-filter-species, .ms-filter-status').forEach(function(el){ el.checked = true; });
+          document.querySelectorAll('#ms-species-all, #ms-species-all-sheet, #ms-status-all, #ms-status-all-sheet').forEach(function(el){ el.checked = true; });
+          rebuildCluster(Object.keys(SPECIES_COLORS_JS), Object.keys(STATUS_INFO_JS));
+          updateFilterFabIndicator();
+        }
         if(resetBtn){
-          resetBtn.addEventListener('click', function(){
-            document.querySelectorAll('.ms-filter-species, .ms-filter-status').forEach(function(el){ el.checked = true; });
-            document.querySelectorAll('#ms-species-all, #ms-species-all-sheet, #ms-status-all, #ms-status-all-sheet').forEach(function(el){ el.checked = true; });
-            rebuildCluster(Object.keys(SPECIES_COLORS_JS), Object.keys(STATUS_INFO_JS));
-            updateFilterFabIndicator();
-          });
+          resetBtn.addEventListener('click', resetFiltersToAll);
+        }
+        if(resetSheetBtn){
+          resetSheetBtn.addEventListener('click', resetFiltersToAll);
         }
       }
       // close bottom sheet when tapping backdrop
@@ -764,11 +786,17 @@
               '<nav class="ms-side-nav" aria-label="Hauptnavigation">',
                 '<button class="ms-side-item" type="button" data-ms-nav-action="filter"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3 4h18l-7 8v6a1 1 0 0 1-1.45.89l-2.5-1.25A1 1 0 0 1 9 17v-5L3 4z"></path></svg></span><span>Filter</span></button>',
                 '<button class="ms-side-item" type="button" data-ms-nav-action="share"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M18 16a3 3 0 0 0-2.24 1.01L8.91 13.7a3.1 3.1 0 0 0 0-3.4l6.85-3.31A3 3 0 1 0 15 5a3 3 0 0 0 .05.55L8.2 8.86a3 3 0 1 0 0 6.28l6.85 3.31A3 3 0 1 0 18 16z"></path></svg></span><span>Teile Karte</span></button>',
+                '<button class="ms-side-item" type="button" data-ms-nav-action="feedback"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></span><span>Sende Feedback</span></button>',
                 '<button class="ms-side-item" type="button" data-ms-nav-action="contact"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3 6.5A2.5 2.5 0 0 1 5.5 4h13A2.5 2.5 0 0 1 21 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5v-11zm1.8.3 7.2 5.2 7.2-5.2v-.3a1 1 0 0 0-1-1h-12.4a1 1 0 0 0-1 1v.3zm14.4 2-6.7 4.8a1 1 0 0 1-1.2 0L4.8 8.8v8.7a1 1 0 0 0 1 1h12.4a1 1 0 0 0 1-1V8.8z"></path></svg></span><span>Kontakt</span></button>',
                 '<div class="ms-side-divider" role="separator" aria-hidden="true"></div>',
                 '<button class="ms-side-item" type="button" data-ms-nav-action="terms"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M6 2h9l5 5v15a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm8 1.5V8h4.5"></path><path fill="currentColor" d="M8 11h8v1.5H8zM8 14h8v1.5H8zM8 17h6v1.5H8z"></path></svg></span><span>Nutzungsbedingungen</span></button>',
                 '<button class="ms-side-item" type="button" data-ms-nav-action="legal"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2 4 5.5V11c0 5.3 3.4 10.3 8 11.8 4.6-1.5 8-6.5 8-11.8V5.5L12 2zm0 4.2a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6zm-2.1 5h4.2v7h-1.6v-2.6h-1v2.6H9.9v-7z"></path></svg></span><span>Impressum &amp; Datenschutzerklärung</span></button>',
               '</nav>',
+              '<div class="ms-side-footer">',
+                '<div class="ms-side-logo-wrap">',
+                  '<img class="ms-side-logo" src="images/logo_bgsz.svg" alt="NABU Bezirksgruppe Steglitz-Zehlendorf" onerror="if(!this.dataset.fallback1){this.dataset.fallback1=\'1\';this.src=\'docs/images/logo_bgsz.svg\';}else{this.style.display=\'none\';}">',
+                '</div>',
+              '</div>',
             '</aside>',
             '<div id="ms-fab-stack" class="ms-fab-stack" aria-hidden="false">',
               '<button id="fab-filter" class="ms-fab-filter" type="button" aria-label="Filter öffnen">',
@@ -859,6 +887,7 @@
           if(!mobileRefs || !mobileRefs.placeholderModal){ return; }
           mobileRefs.placeholderModal.classList.add('ms-hidden');
           mobileRefs.placeholderModal.setAttribute('aria-hidden', 'true');
+          syncHeaderLayeringOverModals();
         }
         function showShareToast(message){
           showMobileLocationToast(message || 'Link kopiert.');
@@ -896,6 +925,7 @@
           mobileRefs.bottomSheet.classList.add('open');
           mobileRefs.bottomSheet.setAttribute('aria-hidden', 'false');
           syncFabStackVisibility();
+          syncHeaderLayeringOverModals();
           syncMobileControlVisibility(true);
         }
 
@@ -1020,6 +1050,11 @@
               shareCurrentMap();
               return;
             }
+            if(action === 'feedback'){
+              closeSideSheet(false);
+              try{ window.location.href = FEEDBACK_MAILTO; }catch(e){}
+              return;
+            }
           });
 
           addCleanup(document, 'change', function(ev){
@@ -1053,6 +1088,7 @@
           bindMobileEvents();
           syncFabStackVisibility();
           updateFilterFabIndicator();
+          syncHeaderLayeringOverModals();
           mobileMounted = true;
           safeInvalidateMap();
         }
