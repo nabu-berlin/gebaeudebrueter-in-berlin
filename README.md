@@ -1,6 +1,6 @@
-# Dieser Version ersetzt die ältere Version "Gebaeudebruter-test"
-
 # Gebäudebrüter in Berlin – GitHub Pages (Display)
+
+## Diese Version ersetzt die ältere Version "Gebaeudebrueter-test"
 
 Dieses Repository enthält nur die statischen Dateien für die Veröffentlichung der Karte über GitHub Pages.
 
