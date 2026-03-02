@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NABU Gebäudebrüter in Berlin — Modernisiert (Preview)</title>
+  <link rel="icon" href="images/vogel.png" type="image/png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="src/styles/tokens.css" />
+  <link rel="stylesheet" href="src/styles/base.css" />
+  <link rel="stylesheet" href="src/styles/components.css" />
+  <link rel="stylesheet" href="src/styles/utilities.css" />
+  <meta name="robots" content="noindex" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar" data-role="topbar">
+      <button type="button" class="icon-btn" data-action="toggle-nav" aria-label="Navigation öffnen">☰</button>
+      <h1 class="topbar-title">Gebäudebrüter in Berlin</h1>
+      <button type="button" class="icon-btn" data-action="open-filter" aria-label="Filter öffnen">⚙</button>
+    </header>
+
+    <main class="map-region" aria-label="Kartenbereich">
+      <div id="map" class="map-canvas" role="region" aria-label="Karte"></div>
+    </main>
+
+    <aside class="side-sheet" data-role="nav-sheet" aria-hidden="true">
+      <div class="side-sheet-header">
+        <strong>Menü</strong>
+        <button type="button" class="icon-btn" data-action="close-nav" aria-label="Menü schließen">✕</button>
+      </div>
+      <nav>
+        <button type="button" class="list-item" data-action="open-filter">Filter</button>
+        <button type="button" class="list-item" data-action="share-map">Standort teilen</button>
+      </nav>
+    </aside>
+    <div class="backdrop" data-role="nav-backdrop" aria-hidden="true"></div>
+
+    <section class="bottom-sheet" data-role="filter-sheet" aria-hidden="true">
+      <header class="sheet-header">
+        <h2>Filter</h2>
+        <button type="button" class="icon-btn" data-action="close-filter" aria-label="Filter schließen">✕</button>
+      </header>
+      <div class="sheet-content" data-role="filter-root"></div>
+      <footer class="sheet-footer">
+        <button type="button" class="btn" data-action="reset-filter">Zurücksetzen</button>
+        <button type="button" class="btn btn-primary" data-action="apply-filter">Anwenden</button>
+      </footer>
+    </section>
+
+    <div class="modal" data-role="marker-modal" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-label="Standortdetails">
+        <button type="button" class="icon-btn modal-close" data-action="close-marker-modal" aria-label="Details schließen">✕</button>
+        <div class="modal-content" data-role="marker-modal-content"></div>
+      </div>
+    </div>
+
+    <button type="button" class="fab" data-action="locate" aria-label="Standort finden">◎</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.1.0/leaflet.markercluster.js"></script>
+  <script type="module" src="src/app/bootstrap.js"></script>
+</body>
+</html>
