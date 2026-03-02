@@ -1,5 +1,7 @@
 # Gebäudebrüter in Berlin – GitHub Pages (Display)
 
+## Diese Version ersetzt die ältere Version "Gebaeudebrueter-test"
+
 Dieses Repository enthält nur die statischen Dateien für die Veröffentlichung der Karte über GitHub Pages.
 
 Quelle der in der Karte angezeigten Daten ist die **Online-Datenbank "Gebäudebrüter in Berlin"** des Projekts Gebäudebrüter im **NABU Landesverband Berlin** und der NABU Bezirksgruppe Steglitz-Zehlendorf.
