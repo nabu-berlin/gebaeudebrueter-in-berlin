@@ -91,8 +91,9 @@
     .ms-toggle.open .arrow { transform: rotate(90deg); }
     .ms-modal { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.45); z-index:10000; display:flex; align-items:center; justify-content:center; }
     .ms-modal-content { background: #fff; padding: 18px 22px; border-radius:10px; max-width:700px; width:calc(100% - 40px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); position:relative; }
-    .ms-modal-close { position:absolute; top:8px; right:8px; border:none; background:transparent; font-size:18px; cursor:pointer; }
+    .ms-modal-close { position:absolute; top:8px; right:8px; border:none; background:transparent; font-size:18px; cursor:pointer; width:44px; height:44px; min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; touch-action:manipulation; }
     .ms-modal-body { font-size:14px; line-height:1.6; }
+    #ms-placeholder-text { white-space: pre-line; }
     .ms-modal-title { font-weight: 700; }
     .ms-modal-section-title { font-weight: 700; }
     .ms-modal-row { display:flex; gap:16px; align-items:flex-start; margin-top:4px; flex-wrap:wrap; }
@@ -279,7 +280,7 @@
     /* subtle custom scrollbar for the control on desktop */
     .ms-control::-webkit-scrollbar { width: 8px; }
     .ms-control::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius:6px; }
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
       .ms-control.ms-overlay-hidden {
         display: none !important;
       }
@@ -401,7 +402,7 @@ body.ms-mobile-redesign .ms-control {
   padding: 6px 10px;
   background: var(--ms-header-bg);
   box-shadow: var(--ms-header-shadow);
-  z-index: 10090;
+  z-index: 10040;
 }
 
 #ms-app-header,
@@ -734,14 +735,14 @@ body.ms-side-open {
   touch-action: none;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
   :root {
     --ms-nav-width: clamp(360px, 36vw, 420px);
   }
   .ms-app-title { font-size: 15px; }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   #ms-app-header { display: grid; }
   #ms-side-backdrop { display: block; }
   #ms-side-sheet { display: flex; }
@@ -889,7 +890,7 @@ body.ms-side-open {
   }
 }
 
-@media (min-width: 601px) {
+@media (min-width: 769px) {
   #ms-control {
     display: flex !important;
   }
