@@ -4,17 +4,20 @@
       var STATUS_INFO_JS = {"verloren": {"label": "verlorene Niststätte", "color": "#616161", "short": "×"}, "sanierung": {"label": "Sanierung", "color": "#e31a1c", "short": "S"}, "ersatz": {"label": "Ersatzmaßn.", "color": "#00897b", "short": "E"}, "kontrolle": {"label": "Kontrolle", "color": "#1976d2", "short": "K"}, "none": {"label": "Ohne Status", "color": "#9e9e9e", "short": "—"}};
       var ALL_SPECIES = Object.keys(SPECIES_COLORS_JS);
       var ALL_STATUS = Object.keys(STATUS_INFO_JS);
+      var MOBILE_MAX_WIDTH = 768;
       var FEEDBACK_MAILTO = 'mailto:detlefdev@gmail.com?subject=Feedback%20zur%20Karte';
       var CONTACT_MAILTO = 'mailto:detlefdev@gmail.com?subject=Kontakt%20zur%20Karte';
+      var CONTACT_UNAVAILABLE_TEXT = 'Kontaktangaben werden in Kürze verfügbar sein.';
+      var ABOUT_APP_TEXT = 'Diese App visualisiert gemeldete Gebäudebrüter-Standorte in Berlin und unterstützt den Schutz von Mauerseglern, Schwalben, Sperlingen und Fledermäusen. Die Daten stammen aus dem Projekt der NABU Bezirksgruppe Steglitz-Zehlendorf und werden fortlaufend ergänzt.';
       var NABU_LOGO_LINK = 'https://berlin.nabu.de/wir-ueber-uns/bezirksgruppen/steglitz-zehlendorf/index.html';
       var LEGAL_COMBINED_URL = 'https://berlin.nabu.de/impressum/02133.html';
       var SUBMIT_FORM_URL = 'https://berlin.nabu.de/wir-ueber-uns/bezirksgruppen/steglitz-zehlendorf/projekte/gebaeudebrueter/12400.html';
       // Cluster-aware filtering support (always AND across groups)
       var MS = { map:null, cluster:null, markers:[], ready:false, userMarker:null, userAccuracyCircle:null, locationBound:false, locationToastTimer:null, locateControl:null, popupVisible:false };
-      var MS_MOBILE_MEDIA = (window.matchMedia ? window.matchMedia('(max-width: 600px)') : null);
+      var MS_MOBILE_MEDIA = (window.matchMedia ? window.matchMedia('(max-width: ' + MOBILE_MAX_WIDTH + 'px)') : null);
       function isMobileView(){
         if(MS_MOBILE_MEDIA){ return !!MS_MOBILE_MEDIA.matches; }
-        return !!(window.innerWidth && window.innerWidth <= 600);
+        return !!(window.innerWidth && window.innerWidth <= MOBILE_MAX_WIDTH);
       }
       var isMobile = isMobileView();
       try{ window.isMobile = isMobile; }catch(e){}
@@ -88,10 +91,14 @@
         return href || SUBMIT_FORM_URL;
       }
       function openSubmitModalOrFallback(){
+        if(isMobileView()){
+          closeMobileTransientOverlays({ keepSubmitModal: true, forceShowControl: true });
+        }
         var submitModal = document.getElementById('ms-submit-modal');
         var submitCta = ensureSubmitCtaSecurity();
         if(submitModal){
           submitModal.classList.remove('ms-hidden');
+          submitModal.setAttribute('aria-hidden', 'false');
           syncHeaderLayeringOverModals();
           syncMobileControlVisibility();
           if(submitCta){ setTimeout(function(){ try{ submitCta.focus(); }catch(e){} }, 0); }
@@ -131,12 +138,7 @@
       function syncHeaderLayeringOverModals(){
         var header = document.getElementById('ms-app-header');
         if(!header){ return; }
-        var modalVisible = !!document.querySelector('#ms-info-modal:not(.ms-hidden), #ms-submit-modal:not(.ms-hidden), #ms-placeholder-modal:not(.ms-hidden), #ms-marker-modal:not(.ms-hidden), #gbModalOverlay.gb-open');
-        if(modalVisible){
-          header.style.zIndex = '10090';
-        } else {
-          header.style.removeProperty('z-index');
-        }
+        header.style.removeProperty('z-index');
       }
       function syncMobileControlVisibility(forceShow){
         var ctrl = getControlElement();
@@ -145,6 +147,71 @@
         if(forceShow === true){ ctrl.classList.remove('ms-overlay-hidden'); return; }
         var shouldHide = isModalOpenById('ms-info-modal') || isModalOpenById('ms-submit-modal') || hasVisibleMapPopup();
         ctrl.classList.toggle('ms-overlay-hidden', shouldHide);
+      }
+      function hideModalById(id){
+        var modal = document.getElementById(id);
+        if(!modal){ return; }
+        modal.classList.add('ms-hidden');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+      function closeSideSheetDom(){
+        var sideSheet = document.getElementById('ms-side-sheet');
+        var sideBackdrop = document.getElementById('ms-side-backdrop');
+        var navToggle = document.getElementById('ms-nav-toggle');
+        if(sideSheet){
+          sideSheet.classList.remove('is-open');
+          sideSheet.setAttribute('aria-hidden', 'true');
+          sideSheet.setAttribute('aria-modal', 'false');
+        }
+        if(sideBackdrop){
+          sideBackdrop.classList.remove('is-open');
+          sideBackdrop.setAttribute('hidden', 'hidden');
+        }
+        if(navToggle){
+          navToggle.classList.remove('is-open');
+          navToggle.setAttribute('aria-expanded', 'false');
+          navToggle.setAttribute('aria-label', 'Menü öffnen');
+        }
+        try{ document.body.classList.remove('ms-side-open'); }catch(e){}
+      }
+      function closeBottomSheetDom(){
+        var sheet = document.getElementById('ms-bottom-sheet');
+        if(!sheet){ return; }
+        sheet.classList.remove('open');
+        sheet.classList.remove('ms-sheet-dragging');
+        sheet.setAttribute('aria-hidden', 'true');
+        sheet.style.removeProperty('transition');
+        sheet.style.removeProperty('will-change');
+        sheet.style.removeProperty('transform');
+        var fabStack = document.getElementById('ms-fab-stack');
+        if(fabStack){
+          fabStack.classList.remove('is-hidden');
+          fabStack.setAttribute('aria-hidden', 'false');
+        }
+      }
+      function closeGbModalOverlay(){
+        var overlay = document.getElementById('gbModalOverlay');
+        if(!overlay || !overlay.classList.contains('gb-open')){ return; }
+        try{
+          if(typeof window.gbModalClose === 'function'){
+            window.gbModalClose();
+            return;
+          }
+        }catch(e){}
+        overlay.classList.remove('gb-open');
+      }
+      function closeMobileTransientOverlays(options){
+        var opts = options || {};
+        if(!isMobileView()){ return; }
+        if(!opts.keepMarkerOverlay){ closeAnyOpenMarkerOverlay(); }
+        if(!opts.keepInfoModal){ hideModalById('ms-info-modal'); }
+        if(!opts.keepSubmitModal){ hideModalById('ms-submit-modal'); }
+        if(!opts.keepPlaceholderModal){ hideModalById('ms-placeholder-modal'); }
+        if(!opts.keepBottomSheet){ closeBottomSheetDom(); }
+        if(!opts.keepSideSheet){ closeSideSheetDom(); }
+        if(!opts.keepGbOverlay){ closeGbModalOverlay(); }
+        syncHeaderLayeringOverModals();
+        syncMobileControlVisibility(opts.forceShowControl === true);
       }
       syncViewportCssVars();
       window.addEventListener('resize', syncViewportCssVars, { passive: true });
@@ -224,6 +291,7 @@
       }
       function openMarkerDetailsModalFromMarker(marker){
         if(!isMobile || !marker){ return; }
+        closeMobileTransientOverlays({ keepMarkerOverlay: true, forceShowControl: true });
         var overlay = ensureMarkerDetailsModal();
         if(!overlay){ return; }
         var body = overlay.querySelector('#ms-marker-modal-body');
@@ -442,7 +510,12 @@
         var sheet = document.getElementById('ms-bottom-sheet');
         function openModal(ev){
           if(ev){ ev.preventDefault(); }
-          if(sheet){ sheet.classList.remove('open'); sheet.setAttribute('aria-hidden', 'true'); }
+          if(isMobileView()){
+            closeMobileTransientOverlays({ keepInfoModal: true, forceShowControl: true });
+          } else if(sheet){
+            sheet.classList.remove('open');
+            sheet.setAttribute('aria-hidden', 'true');
+          }
           if(modal){ modal.classList.remove('ms-hidden'); }
           syncHeaderLayeringOverModals();
           syncMobileControlVisibility();
@@ -892,6 +965,7 @@
               '<nav class="ms-side-nav" aria-label="Hauptnavigation">',
                 '<button class="ms-side-item" type="button" data-ms-nav-action="filter"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M3 4h18l-7 8v6a1 1 0 0 1-1.45.89l-2.5-1.25A1 1 0 0 1 9 17v-5L3 4z"></path></svg></span><span>Filter</span></button>',
                 '<button class="ms-side-item" type="button" data-ms-nav-action="info"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M11 10h2v7h-2zm0-4h2v2h-2z"></path><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path></svg></span><span>Info &amp; Hilfe</span></button>',
+                '<button class="ms-side-item" type="button" data-ms-nav-action="about-app"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h-2v-6h2zm0-8h-2V7h2z"></path></svg></span><span>Über diese App</span></button>',
                 '<button class="ms-side-item" type="button" data-ms-nav-action="share"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M18 16a3 3 0 0 0-2.24 1.01L8.91 13.7a3.1 3.1 0 0 0 0-3.4l6.85-3.31A3 3 0 1 0 15 5a3 3 0 0 0 .05.55L8.2 8.86a3 3 0 1 0 0 6.28l6.85 3.31A3 3 0 1 0 18 16z"></path></svg></span><span>Teile Karte</span></button>',
                 '<button class="ms-side-item" type="button" data-ms-nav-action="feedback"><span class="ms-side-icon"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg></span><span>Sende Feedback</span></button>',
                 '<div class="ms-side-divider" role="separator" aria-hidden="true"></div>',
@@ -947,6 +1021,7 @@
             locateFab: document.getElementById('fab-locate'),
             bottomSheet: document.getElementById('ms-bottom-sheet'),
             placeholderModal: document.getElementById('ms-placeholder-modal'),
+            placeholderTitle: document.getElementById('ms-placeholder-title'),
             placeholderText: document.getElementById('ms-placeholder-text'),
             placeholderClose: document.getElementById('ms-placeholder-close')
           };
@@ -985,11 +1060,22 @@
           return 'Stand: ' + fallback;
         }
 
-        function openPlaceholder(text){
+        function openPlaceholder(title, text){
           if(!mobileRefs || !mobileRefs.placeholderModal || !mobileRefs.placeholderText){ return; }
-          mobileRefs.placeholderText.textContent = text || 'Dieser Bereich ist in Vorbereitung.';
+          var resolvedTitle = title;
+          var resolvedText = text;
+          if(typeof resolvedText === 'undefined'){
+            resolvedText = resolvedTitle;
+            resolvedTitle = 'Hinweis';
+          }
+          closeMobileTransientOverlays({ keepPlaceholderModal: true, forceShowControl: true });
+          if(mobileRefs.placeholderTitle){
+            mobileRefs.placeholderTitle.textContent = resolvedTitle || 'Hinweis';
+          }
+          mobileRefs.placeholderText.textContent = resolvedText || 'Dieser Bereich ist in Vorbereitung.';
           mobileRefs.placeholderModal.classList.remove('ms-hidden');
           mobileRefs.placeholderModal.setAttribute('aria-hidden', 'false');
+          syncHeaderLayeringOverModals();
           if(mobileRefs.placeholderClose){ mobileRefs.placeholderClose.focus(); }
         }
 
@@ -1003,7 +1089,10 @@
           showMobileLocationToast(message || 'Link kopiert.');
         }
         function openContactLink(){
-          try{ window.location.href = CONTACT_MAILTO; }catch(e){}
+          openPlaceholder('Kontakt', CONTACT_UNAVAILABLE_TEXT);
+        }
+        function openAboutAppInfo(){
+          openPlaceholder('Über diese App', ABOUT_APP_TEXT);
         }
         function shareCurrentMap(){
           var url = window.location.href;
@@ -1035,19 +1124,15 @@
         function openInfoModalFromMobile(){
           var modal = document.getElementById('ms-info-modal');
           if(!modal){ return; }
-          if(mobileRefs && mobileRefs.bottomSheet){
-            closeBottomSheet();
-          }
+          closeMobileTransientOverlays({ keepInfoModal: true, forceShowControl: true });
           modal.classList.remove('ms-hidden');
+          modal.setAttribute('aria-hidden', 'false');
           syncHeaderLayeringOverModals();
           syncMobileControlVisibility();
         }
 
         function openSubmitModalFromMobile(){
-          closeAnyOpenMarkerOverlay();
-          if(mobileRefs && mobileRefs.bottomSheet){
-            closeBottomSheet();
-          }
+          closeMobileTransientOverlays({ keepSubmitModal: true, forceShowControl: true });
           openSubmitModalOrFallback();
         }
 
@@ -1064,7 +1149,7 @@
 
         function openBottomSheet(){
           if(!mobileRefs || !mobileRefs.bottomSheet){ return; }
-          if(mobileRefs.sideSheet && mobileRefs.sideSheet.classList.contains('is-open')){ closeSideSheet(false); }
+          closeMobileTransientOverlays({ keepBottomSheet: true, forceShowControl: true });
           mobileRefs.bottomSheet.classList.add('open');
           mobileRefs.bottomSheet.setAttribute('aria-hidden', 'false');
           mobileRefs.bottomSheet.style.removeProperty('transform');
@@ -1095,10 +1180,7 @@
 
         function openSideSheet(opener){
           if(!mobileRefs){ return; }
-          closeAnyOpenMarkerOverlay();
-          if(mobileRefs.bottomSheet && mobileRefs.bottomSheet.classList.contains('open')){
-            closeBottomSheet();
-          }
+          closeMobileTransientOverlays({ keepSideSheet: true, forceShowControl: true });
           mobileRefs.__lastOpener = opener || mobileRefs.navToggle;
           mobileRefs.sideBackdrop.removeAttribute('hidden');
           mobileRefs.sideSheet.classList.add('is-open');
@@ -1144,10 +1226,7 @@
 
           addDirectPressListener(mobileRefs.navToggle, function(){
             if(mobileRefs.sideSheet.classList.contains('is-open')){ closeSideSheet(true); }
-            else {
-              closeAnyOpenMarkerOverlay();
-              openSideSheet(mobileRefs.navToggle);
-            }
+            else { openSideSheet(mobileRefs.navToggle); }
           });
           addDirectPressListener(mobileRefs.sideClose, function(){ closeSideSheet(true); });
           addDirectPressListener(mobileRefs.sideBackdrop, function(){ closeSideSheet(true); });
@@ -1162,9 +1241,7 @@
             if(ev && ev.cancelable){ ev.preventDefault(); }
             if(ev && typeof ev.stopImmediatePropagation === 'function'){ ev.stopImmediatePropagation(); }
             if(ev && ev.stopPropagation){ ev.stopPropagation(); }
-            closeAnyOpenMarkerOverlay();
-            if(mobileRefs.sideSheet && mobileRefs.sideSheet.classList.contains('is-open')){ closeSideSheet(false); }
-            if(mobileRefs.bottomSheet && mobileRefs.bottomSheet.classList.contains('open')){ closeBottomSheet(); }
+            closeMobileTransientOverlays({ keepSubmitModal: true, forceShowControl: true });
             if(!openSubmitModalOrFallback()){
               openUrlInNewTabSecure(getSubmitFormUrl());
             }
@@ -1378,23 +1455,24 @@
               return;
             }
             if(action === 'info'){
-              closeSideSheet(false);
               openInfoModalFromMobile();
               return;
             }
+            if(action === 'about-app'){
+              openAboutAppInfo();
+              return;
+            }
             if(action === 'feedback'){
-              closeSideSheet(false);
+              closeMobileTransientOverlays({ forceShowControl: true });
               try{ window.location.href = FEEDBACK_MAILTO; }catch(e){}
               return;
             }
             if(action === 'contact'){
-              closeSideSheet(false);
               openContactLink();
               return;
             }
             if(action === 'legal-terms'){
-              closeSideSheet(false);
-              openPlaceholder('Nutzungsbedingungen werden derzeit vorbereitet.');
+              openPlaceholder('Nutzungsbedingungen', 'Nutzungsbedingungen werden derzeit vorbereitet.');
               return;
             }
             if(action === 'legal-combined'){
@@ -1477,7 +1555,7 @@
         }
 
         function applyViewportGate(){
-          isMobile = !!(MS_MOBILE_MEDIA ? MS_MOBILE_MEDIA.matches : (window.innerWidth <= 600));
+          isMobile = !!(MS_MOBILE_MEDIA ? MS_MOBILE_MEDIA.matches : (window.innerWidth <= MOBILE_MAX_WIDTH));
           try{ window.isMobile = isMobile; }catch(e){}
           removeLegacyHeaderIfPresent();
           if(isMobile === true){
