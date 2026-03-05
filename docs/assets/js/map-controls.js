@@ -19,8 +19,9 @@
       var TOPPLUSOPEN_MAX_TILE_ERRORS = 8;
       var TOPPLUSOPEN_MAX_ZOOM = 18;
       var TOPPLUSOPEN_CAPABILITIES_URL = 'https://sgx.geodatenzentrum.de/wmts_topplus_open/1.0.0/WMTSCapabilities.xml';
-      var TOPPLUSOPEN_DATA_YEAR_FALLBACK = 'Jahr des letzten Datenbezugs';
-      var TOPPLUSOPEN_DATA_YEAR = String(window.__TOPPLUSOPEN_DATA_YEAR__ || window.__BKG_TOPPLUSOPEN_DATA_YEAR__ || window.__TOPPLUSOPEN_LAST_DATA_YEAR__ || document.documentElement.getAttribute('data-topplusopen-year') || '').trim() || TOPPLUSOPEN_DATA_YEAR_FALLBACK;
+      var TOPPLUSOPEN_DATA_YEAR_LOCK = '2024';
+      var TOPPLUSOPEN_DATA_YEAR_FALLBACK = TOPPLUSOPEN_DATA_YEAR_LOCK;
+      var TOPPLUSOPEN_DATA_YEAR = String(window.__TOPPLUSOPEN_DATA_YEAR__ || window.__BKG_TOPPLUSOPEN_DATA_YEAR__ || window.__TOPPLUSOPEN_LAST_DATA_YEAR__ || document.documentElement.getAttribute('data-topplusopen-year') || '').trim() || TOPPLUSOPEN_DATA_YEAR_LOCK;
       var BKG_DATENQUELLEN_URL = 'https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_topplusopen.html';
       var DL_DE_BY_20_URL = 'https://www.govdata.de/dl-de/by-2-0';
       var POSITRON_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>';
@@ -266,6 +267,18 @@
       function extractTopPlusOpenYearFromText(content){
         var text = String(content || '');
         if(!text){ return ''; }
+        var matchProduktstandDate = text.match(/Produktstand\s*:\s*((?:19|20)\d{2})[-/.](?:0[1-9]|1[0-2])[-/.](?:0[1-9]|[12]\d|3[01])/i);
+        if(matchProduktstandDate && matchProduktstandDate[1]){ return matchProduktstandDate[1]; }
+        var matchProduktstandYear = text.match(/Produktstand\s*:\s*((?:19|20)\d{2})/i);
+        if(matchProduktstandYear && matchProduktstandYear[1]){
+          var produktstandYear = normalizeTopPlusOpenYear(matchProduktstandYear[1]);
+          if(produktstandYear){ return produktstandYear; }
+        }
+        var matchRevisionDate = text.match(/((?:19|20)\d{2})[-/.](?:0[1-9]|1[0-2])[-/.](?:0[1-9]|[12]\d|3[01])[\s\S]{0,180}?codeListValue="revision"|codeListValue="revision"[\s\S]{0,180}?((?:19|20)\d{2})[-/.](?:0[1-9]|1[0-2])[-/.](?:0[1-9]|[12]\d|3[01])/i);
+        if(matchRevisionDate){
+          var revisionYear = normalizeTopPlusOpenYear(matchRevisionDate[1] || matchRevisionDate[2]);
+          if(revisionYear){ return revisionYear; }
+        }
         var matchDirect = text.match(/Kartendarstellung[^\n]{0,220}BKG\s*\(([^)]+)\)/i);
         if(matchDirect && matchDirect[1]){
           var directYear = normalizeTopPlusOpenYear(matchDirect[1]);
