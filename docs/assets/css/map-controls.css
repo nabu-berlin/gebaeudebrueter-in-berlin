@@ -368,7 +368,25 @@
 .gb-modal button{border:0;border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer;}
 .gb-modal .gb-cancel{background:#eee;color:#333;}
 .gb-modal .gb-confirm{background:#1976d2;color:#fff;}
-.gb-marker-counter{position:fixed;bottom:0;left:0;background:#fff;padding:4px;z-index:9999;}
+
+.leaflet-bottom.leaflet-left {
+  z-index: 10070;
+}
+
+.leaflet-bottom.leaflet-left .leaflet-control-attribution {
+  margin: 0 0 8px 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  max-width: min(68vw, 420px);
+  line-height: 1.35;
+  font-size: 11px;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.2);
+}
+
+.leaflet-bottom.leaflet-left .leaflet-control-attribution a {
+  text-decoration: underline;
+}
 
 /* Mobile-first app header + side navigation + filter FAB */
 :root {

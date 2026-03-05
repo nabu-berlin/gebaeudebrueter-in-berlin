@@ -18,15 +18,21 @@
       var TOPPLUSOPEN_TIMEOUT_MS = 15000;
       var TOPPLUSOPEN_MAX_TILE_ERRORS = 8;
       var TOPPLUSOPEN_MAX_ZOOM = 18;
-      var TOPPLUSOPEN_DATA_YEAR = String((new Date()).getFullYear());
-      var BKG_DATENQUELLEN_URL = 'https://www.bkg.bund.de/DE/Produkte-und-Services/Shop-und-Downloads/Karten-und-Geodaten/TopPlusOpen/topplus_open.html';
+      var TOPPLUSOPEN_DATA_YEAR = String(window.__TOPPLUSOPEN_DATA_YEAR__ || window.__BKG_TOPPLUSOPEN_DATA_YEAR__ || document.documentElement.getAttribute('data-topplusopen-year') || '').trim() || 'Jahr des letzten Datenbezugs';
+      var BKG_DATENQUELLEN_URL = 'https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_topplusopen.html';
       var POSITRON_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>';
-      var TOPPLUSOPEN_ATTRIBUTION = 'Kartendarstellung: &copy; BKG (' + TOPPLUSOPEN_DATA_YEAR + ') – <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener noreferrer">DL-DE-BY 2.0</a> · <a href="' + BKG_DATENQUELLEN_URL + '" target="_blank" rel="noopener noreferrer">Datenquellen</a>';
+      var TOPPLUSOPEN_ATTRIBUTION = 'Kartendarstellung: &copy; BKG (' + TOPPLUSOPEN_DATA_YEAR + ') · <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener noreferrer">dl-de/by-2-0</a> · <a href="' + BKG_DATENQUELLEN_URL + '" target="_blank" rel="noopener noreferrer">Datenquellen</a>';
+      var BASEMAP_ATTRIBUTION_REGISTRY = {
+        positron: POSITRON_ATTRIBUTION,
+        topplusopen: TOPPLUSOPEN_ATTRIBUTION
+      };
       var BASEMAP_STATE = {
         activeId: BASEMAP_DEFAULT_ID,
         activeLayer: null,
         initialLayer: null,
         mapDefaultMaxZoom: null,
+        activeAttribution: '',
+        attributionPrepared: false,
         monitorLayer: null,
         monitorLoadHandler: null,
         monitorErrorHandler: null,
@@ -35,7 +41,7 @@
         tileErrorCount: 0
       };
       // Cluster-aware filtering support (always AND across groups)
-      var MS = { map:null, cluster:null, markers:[], ready:false, userMarker:null, userAccuracyCircle:null, locationBound:false, locationToastTimer:null, locateControl:null, popupVisible:false };
+      var MS = { map:null, cluster:null, markers:[], ready:false, userMarker:null, userAccuracyCircle:null, locationBound:false, locationToastTimer:null, locateControl:null, popupVisible:false, visibleMarkerCount:null };
       var MS_MOBILE_MEDIA = (window.matchMedia ? window.matchMedia('(max-width: ' + MOBILE_MAX_WIDTH + 'px)') : null);
       function isMobileView(){
         if(MS_MOBILE_MEDIA){ return !!MS_MOBILE_MEDIA.matches; }
@@ -272,6 +278,46 @@
         });
         return found;
       }
+      function ensureAttributionControl(){
+        if(!MS.map){ return null; }
+        var control = MS.map.attributionControl || null;
+        if(!control && window.L && L.control && typeof L.control.attribution === 'function'){
+          try{
+            control = L.control.attribution({ position: 'bottomleft', prefix: false });
+            control.addTo(MS.map);
+            MS.map.attributionControl = control;
+          }catch(e){ control = null; }
+        }
+        if(!control){ return null; }
+        try{ if(typeof control.setPosition === 'function'){ control.setPosition('bottomleft'); } }catch(e){}
+        try{ if(typeof control.setPrefix === 'function'){ control.setPrefix(''); } }catch(e){}
+        if(!BASEMAP_STATE.attributionPrepared){
+          try{
+            if(control._attributions){
+              Object.keys(control._attributions).forEach(function(key){ delete control._attributions[key]; });
+            }
+            if(typeof control._update === 'function'){ control._update(); }
+          }catch(e){}
+          BASEMAP_STATE.attributionPrepared = true;
+          BASEMAP_STATE.activeAttribution = '';
+        }
+        return control;
+      }
+      function syncBasemapAttribution(id){
+        var normalized = normalizeBasemapId(id) || BASEMAP_DEFAULT_ID;
+        var control = ensureAttributionControl();
+        if(!control){ return; }
+        Object.keys(BASEMAP_ATTRIBUTION_REGISTRY).forEach(function(key){
+          try{ control.removeAttribution(BASEMAP_ATTRIBUTION_REGISTRY[key]); }catch(e){}
+        });
+        var nextAttribution = BASEMAP_ATTRIBUTION_REGISTRY[normalized] || BASEMAP_ATTRIBUTION_REGISTRY[BASEMAP_DEFAULT_ID];
+        try{
+          control.addAttribution(nextAttribution);
+          BASEMAP_STATE.activeAttribution = nextAttribution;
+        }catch(e){
+          BASEMAP_STATE.activeAttribution = '';
+        }
+      }
       function clearTopPlusOpenMonitor(){
         if(BASEMAP_STATE.timeoutId){
           clearTimeout(BASEMAP_STATE.timeoutId);
@@ -303,7 +349,7 @@
             minZoom: 0,
             maxZoom: TOPPLUSOPEN_MAX_ZOOM,
             maxNativeZoom: TOPPLUSOPEN_MAX_ZOOM,
-            attribution: TOPPLUSOPEN_ATTRIBUTION,
+            attribution: '',
             detectRetina: false,
             noWrap: true
           });
@@ -313,7 +359,7 @@
           minZoom: 0,
           maxZoom: 20,
           maxNativeZoom: 20,
-          attribution: POSITRON_ATTRIBUTION,
+          attribution: '',
           detectRetina: !isMobileView()
         });
       }
@@ -379,6 +425,7 @@
         var sameIdActive = normalized === BASEMAP_STATE.activeId && BASEMAP_STATE.activeLayer && MS.map.hasLayer(BASEMAP_STATE.activeLayer);
         if(sameIdActive){
           syncMapMaxZoomForBasemap(normalized);
+          syncBasemapAttribution(normalized);
           if(opts.updateUrl){ updateBasemapUrlParam(normalized); }
           if(opts.persist){ persistBasemapToStorage(normalized); }
           return true;
@@ -394,6 +441,7 @@
         BASEMAP_STATE.activeLayer = nextLayer;
         BASEMAP_STATE.activeId = normalized;
         syncMapMaxZoomForBasemap(normalized);
+        syncBasemapAttribution(normalized);
         if(normalized === 'topplusopen'){
           monitorTopPlusOpenLayer(nextLayer);
         }
@@ -406,6 +454,7 @@
         if(BASEMAP_STATE.mapDefaultMaxZoom === null && typeof MS.map.getMaxZoom === 'function'){
           BASEMAP_STATE.mapDefaultMaxZoom = MS.map.getMaxZoom();
         }
+        ensureAttributionControl();
         if(!BASEMAP_STATE.initialLayer){ BASEMAP_STATE.initialLayer = detectCurrentBasemapLayer(); }
         BASEMAP_STATE.activeLayer = BASEMAP_STATE.initialLayer;
         BASEMAP_STATE.activeId = BASEMAP_DEFAULT_ID;
@@ -417,10 +466,12 @@
           if(!switched && !applyBasemapById(BASEMAP_DEFAULT_ID, { updateUrl: !!basemapFromUrl, persist: true })){
             BASEMAP_STATE.activeId = BASEMAP_DEFAULT_ID;
           }
+          syncBasemapAttribution(BASEMAP_STATE.activeId);
           return;
         }
         persistBasemapToStorage(BASEMAP_DEFAULT_ID);
         syncMapMaxZoomForBasemap(BASEMAP_DEFAULT_ID);
+        syncBasemapAttribution(BASEMAP_DEFAULT_ID);
         if(basemapFromUrl === BASEMAP_DEFAULT_ID){ updateBasemapUrlParam(BASEMAP_DEFAULT_ID); }
       }
       syncViewportCssVars();
@@ -467,6 +518,8 @@
             try{ m._msPopup = m.getPopup(); }catch(e){ m._msPopup = null; }
           }
         });
+        MS.visibleMarkerCount = MS.markers.length;
+        updateInfoModalMarkerSentence();
         MS.ready = true;
       }
       function ensureMarkerDetailsModal(){
@@ -720,6 +773,7 @@
         var sheet = document.getElementById('ms-bottom-sheet');
         function openModal(ev){
           if(ev){ ev.preventDefault(); }
+          updateInfoModalMarkerSentence();
           if(isMobileView()){
             closeMobileTransientOverlays({ keepInfoModal: true, forceShowControl: true });
           } else if(sheet){
@@ -886,7 +940,53 @@
           if(visible){ toAdd.push(m); }
         }
         toAdd.forEach(function(m){ MS.cluster.addLayer(m); });
+        MS.visibleMarkerCount = toAdd.length;
+        updateInfoModalMarkerSentence();
         setTimeout(function(){ MS.cluster.getLayers().forEach(function(m){ applyVisualsToMarker(m, selectedSpecies, selectedStatus, speciesAll, statusAll); }); }, 75);
+      }
+      function getVisibleMarkerCount(){
+        if(typeof MS.visibleMarkerCount === 'number' && isFinite(MS.visibleMarkerCount)){ return MS.visibleMarkerCount; }
+        try{
+          if(MS.cluster && typeof MS.cluster.getLayers === 'function'){
+            var clusterCount = MS.cluster.getLayers().length;
+            if(typeof clusterCount === 'number' && isFinite(clusterCount)){ return clusterCount; }
+          }
+        }catch(e){}
+        try{
+          if(MS.markers && typeof MS.markers.length === 'number' && isFinite(MS.markers.length)){ return MS.markers.length; }
+        }catch(e){}
+        return null;
+      }
+      function getInfoModalLeadParagraph(modal){
+        if(!modal || !modal.querySelectorAll){ return null; }
+        var paragraphs = modal.querySelectorAll('.ms-modal-text p');
+        for(var i = 0; i < paragraphs.length; i += 1){
+          var text = String(paragraphs[i].textContent || '').trim();
+          if(/^Diese Karte zeigt\b/i.test(text)){ return paragraphs[i]; }
+        }
+        return null;
+      }
+      function getInfoModalSentenceTemplate(paragraph){
+        if(!paragraph){ return ''; }
+        var template = paragraph.getAttribute('data-ms-count-template') || '';
+        if(template){ return template; }
+        var currentText = String(paragraph.textContent || '').trim();
+        template = currentText.replace(/^Diese Karte zeigt\s+(?:\d+\s+|zahlreiche\s+)?Standorte/i, 'Diese Karte zeigt {{count}} Standorte');
+        if(template.indexOf('{{count}}') === -1){
+          template = 'Diese Karte zeigt {{count}} Standorte von Gebäudebrütern in Berlin. Gebäudebrüter sind Tiere wie Mauersegler, Schwalben, Sperlinge oder Fledermäuse, die an Gebäuden leben.';
+        }
+        paragraph.setAttribute('data-ms-count-template', template);
+        return template;
+      }
+      function updateInfoModalMarkerSentence(){
+        var modal = document.getElementById('ms-info-modal');
+        if(!modal){ return; }
+        var paragraph = getInfoModalLeadParagraph(modal);
+        if(!paragraph){ return; }
+        var template = getInfoModalSentenceTemplate(paragraph);
+        var count = getVisibleMarkerCount();
+        var countText = (typeof count === 'number' && isFinite(count)) ? String(count) : 'zahlreiche';
+        paragraph.textContent = template.replace('{{count}}', countText);
       }
       // build filter checkboxes into desktop and bottom-sheet accordions
       function buildFilters(){
@@ -1295,7 +1395,7 @@
             var subText = fromTitleSub.textContent.trim();
             if(subText){ return /stand\s*:/i.test(subText) ? subText.replace(/\s+/g, ' ') : ('Stand: ' + subText); }
           }
-          var selectors = ['.gb-marker-counter', 'body'];
+          var selectors = ['body'];
           for(var i=0;i<selectors.length;i++){
             var node = document.querySelector(selectors[i]);
             var text = node && node.textContent ? node.textContent : '';
@@ -1412,6 +1512,7 @@
         function openInfoModalFromMobile(){
           var modal = document.getElementById('ms-info-modal');
           if(!modal){ return; }
+          updateInfoModalMarkerSentence();
           closeMobileTransientOverlays({ keepInfoModal: true, forceShowControl: true });
           modal.classList.remove('ms-hidden');
           modal.setAttribute('aria-hidden', 'false');
