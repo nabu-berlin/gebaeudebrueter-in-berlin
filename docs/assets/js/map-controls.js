@@ -18,13 +18,16 @@
       var TOPPLUSOPEN_TIMEOUT_MS = 15000;
       var TOPPLUSOPEN_MAX_TILE_ERRORS = 8;
       var TOPPLUSOPEN_MAX_ZOOM = 18;
-      var TOPPLUSOPEN_DATA_YEAR = String(window.__TOPPLUSOPEN_DATA_YEAR__ || window.__BKG_TOPPLUSOPEN_DATA_YEAR__ || document.documentElement.getAttribute('data-topplusopen-year') || '').trim() || 'Jahr des letzten Datenbezugs';
+      var TOPPLUSOPEN_CAPABILITIES_URL = 'https://sgx.geodatenzentrum.de/wmts_topplus_open/1.0.0/WMTSCapabilities.xml';
+      var TOPPLUSOPEN_DATA_YEAR_FALLBACK = 'Jahr des letzten Datenbezugs';
+      var TOPPLUSOPEN_DATA_YEAR = String(window.__TOPPLUSOPEN_DATA_YEAR__ || window.__BKG_TOPPLUSOPEN_DATA_YEAR__ || window.__TOPPLUSOPEN_LAST_DATA_YEAR__ || document.documentElement.getAttribute('data-topplusopen-year') || '').trim() || TOPPLUSOPEN_DATA_YEAR_FALLBACK;
       var BKG_DATENQUELLEN_URL = 'https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_topplusopen.html';
-      var POSITRON_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>';
-      var TOPPLUSOPEN_ATTRIBUTION = 'Kartendarstellung: &copy; BKG (' + TOPPLUSOPEN_DATA_YEAR + ') · <a href="https://www.govdata.de/dl-de/by-2-0" target="_blank" rel="noopener noreferrer">dl-de/by-2-0</a> · <a href="' + BKG_DATENQUELLEN_URL + '" target="_blank" rel="noopener noreferrer">Datenquellen</a>';
+      var DL_DE_BY_20_URL = 'https://www.govdata.de/dl-de/by-2-0';
+      var POSITRON_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>';
+      var TOPPLUSOPEN_ATTRIBUTION = '';
       var BASEMAP_ATTRIBUTION_REGISTRY = {
         positron: POSITRON_ATTRIBUTION,
-        topplusopen: TOPPLUSOPEN_ATTRIBUTION
+        topplusopen: ''
       };
       var BASEMAP_STATE = {
         activeId: BASEMAP_DEFAULT_ID,
@@ -33,6 +36,7 @@
         mapDefaultMaxZoom: null,
         activeAttribution: '',
         attributionPrepared: false,
+        topplusYearFetchPromise: null,
         monitorLayer: null,
         monitorLoadHandler: null,
         monitorErrorHandler: null,
@@ -42,6 +46,7 @@
       };
       // Cluster-aware filtering support (always AND across groups)
       var MS = { map:null, cluster:null, markers:[], ready:false, userMarker:null, userAccuracyCircle:null, locationBound:false, locationToastTimer:null, locateControl:null, popupVisible:false, visibleMarkerCount:null };
+      applyTopPlusOpenAttributionYear(TOPPLUSOPEN_DATA_YEAR);
       var MS_MOBILE_MEDIA = (window.matchMedia ? window.matchMedia('(max-width: ' + MOBILE_MAX_WIDTH + 'px)') : null);
       function isMobileView(){
         if(MS_MOBILE_MEDIA){ return !!MS_MOBILE_MEDIA.matches; }
@@ -242,6 +247,111 @@
         syncHeaderLayeringOverModals();
         syncMobileControlVisibility(opts.forceShowControl === true);
       }
+      function normalizeTopPlusOpenYear(value){
+        var raw = String(value || '').trim();
+        if(!raw){ return ''; }
+        var match = raw.match(/\b(19|20)\d{2}\b/);
+        return match ? match[0] : '';
+      }
+      function buildTopPlusOpenAttribution(yearValue){
+        var year = normalizeTopPlusOpenYear(yearValue) || TOPPLUSOPEN_DATA_YEAR_FALLBACK;
+        return 'Kartendarstellung: &copy; BKG (' + year + ') · <a href="' + DL_DE_BY_20_URL + '" target="_blank" rel="noopener noreferrer">dl-de/by-2-0</a> · <a href="' + BKG_DATENQUELLEN_URL + '" target="_blank" rel="noopener noreferrer">Datenquellen</a>';
+      }
+      function applyTopPlusOpenAttributionYear(yearValue){
+        var normalizedYear = normalizeTopPlusOpenYear(yearValue) || TOPPLUSOPEN_DATA_YEAR_FALLBACK;
+        TOPPLUSOPEN_DATA_YEAR = normalizedYear;
+        TOPPLUSOPEN_ATTRIBUTION = buildTopPlusOpenAttribution(normalizedYear);
+        BASEMAP_ATTRIBUTION_REGISTRY.topplusopen = TOPPLUSOPEN_ATTRIBUTION;
+      }
+      function extractTopPlusOpenYearFromText(content){
+        var text = String(content || '');
+        if(!text){ return ''; }
+        var matchDirect = text.match(/Kartendarstellung[^\n]{0,220}BKG\s*\(([^)]+)\)/i);
+        if(matchDirect && matchDirect[1]){
+          var directYear = normalizeTopPlusOpenYear(matchDirect[1]);
+          if(directYear){ return directYear; }
+        }
+        var matchBkg = text.match(/BKG\s*\(([^)]+)\)/i);
+        if(matchBkg && matchBkg[1]){
+          var bkgYear = normalizeTopPlusOpenYear(matchBkg[1]);
+          if(bkgYear){ return bkgYear; }
+        }
+        return '';
+      }
+      function fetchTextForTopPlusOpenYear(url, timeoutMs){
+        if(!url || typeof fetch !== 'function'){ return Promise.resolve(''); }
+        return new Promise(function(resolve){
+          var done = false;
+          function finish(value){
+            if(done){ return; }
+            done = true;
+            resolve(String(value || ''));
+          }
+          var timer = setTimeout(function(){ finish(''); }, timeoutMs);
+          fetch(url, { method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store' }).then(function(response){
+            if(!response || !response.ok){
+              clearTimeout(timer);
+              finish('');
+              return;
+            }
+            response.text().then(function(body){
+              clearTimeout(timer);
+              finish(body);
+            }).catch(function(){
+              clearTimeout(timer);
+              finish('');
+            });
+          }).catch(function(){
+            clearTimeout(timer);
+            finish('');
+          });
+        });
+      }
+      function ensureTopPlusOpenDataYear(){
+        var configuredSources = [
+          window.__TOPPLUSOPEN_DATA_YEAR__,
+          window.__BKG_TOPPLUSOPEN_DATA_YEAR__,
+          window.__TOPPLUSOPEN_LAST_DATA_YEAR__,
+          document.documentElement.getAttribute('data-topplusopen-year')
+        ];
+        for(var i = 0; i < configuredSources.length; i += 1){
+          var configuredYear = normalizeTopPlusOpenYear(configuredSources[i]);
+          if(configuredYear){
+            applyTopPlusOpenAttributionYear(configuredYear);
+            return Promise.resolve(configuredYear);
+          }
+        }
+        var knownYear = normalizeTopPlusOpenYear(TOPPLUSOPEN_DATA_YEAR);
+        if(knownYear){
+          applyTopPlusOpenAttributionYear(knownYear);
+          return Promise.resolve(knownYear);
+        }
+        if(BASEMAP_STATE.topplusYearFetchPromise){ return BASEMAP_STATE.topplusYearFetchPromise; }
+        BASEMAP_STATE.topplusYearFetchPromise = fetchTextForTopPlusOpenYear(TOPPLUSOPEN_CAPABILITIES_URL, 9000).then(function(capabilitiesText){
+          var yearFromCapabilities = extractTopPlusOpenYearFromText(capabilitiesText);
+          if(yearFromCapabilities){
+            applyTopPlusOpenAttributionYear(yearFromCapabilities);
+            return yearFromCapabilities;
+          }
+          return fetchTextForTopPlusOpenYear(BKG_DATENQUELLEN_URL, 9000).then(function(sourcesText){
+            var yearFromSources = extractTopPlusOpenYearFromText(sourcesText);
+            if(yearFromSources){
+              applyTopPlusOpenAttributionYear(yearFromSources);
+              return yearFromSources;
+            }
+            applyTopPlusOpenAttributionYear(TOPPLUSOPEN_DATA_YEAR_FALLBACK);
+            return TOPPLUSOPEN_DATA_YEAR;
+          });
+        }).then(function(resultYear){
+          BASEMAP_STATE.topplusYearFetchPromise = null;
+          return resultYear;
+        }, function(){
+          BASEMAP_STATE.topplusYearFetchPromise = null;
+          applyTopPlusOpenAttributionYear(TOPPLUSOPEN_DATA_YEAR_FALLBACK);
+          return TOPPLUSOPEN_DATA_YEAR;
+        });
+        return BASEMAP_STATE.topplusYearFetchPromise;
+      }
       function normalizeBasemapId(value){
         var id = String(value || '').trim().toLowerCase();
         return (id === 'positron' || id === 'topplusopen') ? id : '';
@@ -305,6 +415,9 @@
       }
       function syncBasemapAttribution(id){
         var normalized = normalizeBasemapId(id) || BASEMAP_DEFAULT_ID;
+        if(normalized === 'topplusopen'){
+          applyTopPlusOpenAttributionYear(TOPPLUSOPEN_DATA_YEAR);
+        }
         var control = ensureAttributionControl();
         if(!control){ return; }
         Object.keys(BASEMAP_ATTRIBUTION_REGISTRY).forEach(function(key){
@@ -316,6 +429,16 @@
           BASEMAP_STATE.activeAttribution = nextAttribution;
         }catch(e){
           BASEMAP_STATE.activeAttribution = '';
+        }
+        if(normalized === 'topplusopen'){
+          ensureTopPlusOpenDataYear().then(function(){
+            if(BASEMAP_STATE.activeId !== 'topplusopen'){ return; }
+            var refreshedAttribution = buildTopPlusOpenAttribution(TOPPLUSOPEN_DATA_YEAR);
+            BASEMAP_ATTRIBUTION_REGISTRY.topplusopen = refreshedAttribution;
+            if(BASEMAP_STATE.activeAttribution !== refreshedAttribution){
+              syncBasemapAttribution('topplusopen');
+            }
+          });
         }
       }
       function clearTopPlusOpenMonitor(){
