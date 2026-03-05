@@ -15,8 +15,9 @@
       var BASEMAP_DEFAULT_ID = 'positron';
       var BASEMAP_QUERY_KEY = 'basemap';
       var BASEMAP_STORAGE_KEY = 'ms-basemap';
-      var TOPPLUSOPEN_TIMEOUT_MS = 9000;
-      var TOPPLUSOPEN_MAX_TILE_ERRORS = 4;
+      var TOPPLUSOPEN_TIMEOUT_MS = 15000;
+      var TOPPLUSOPEN_MAX_TILE_ERRORS = 8;
+      var TOPPLUSOPEN_MAX_ZOOM = 18;
       var TOPPLUSOPEN_DATA_YEAR = String((new Date()).getFullYear());
       var BKG_DATENQUELLEN_URL = 'https://www.bkg.bund.de/DE/Produkte-und-Services/Shop-und-Downloads/Karten-und-Geodaten/TopPlusOpen/topplus_open.html';
       var POSITRON_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>';
@@ -25,10 +26,12 @@
         activeId: BASEMAP_DEFAULT_ID,
         activeLayer: null,
         initialLayer: null,
+        mapDefaultMaxZoom: null,
         monitorLayer: null,
         monitorLoadHandler: null,
         monitorErrorHandler: null,
         timeoutId: null,
+        topplusHasSuccessfulLoad: false,
         tileErrorCount: 0
       };
       // Cluster-aware filtering support (always AND across groups)
@@ -283,6 +286,7 @@
         BASEMAP_STATE.monitorLayer = null;
         BASEMAP_STATE.monitorLoadHandler = null;
         BASEMAP_STATE.monitorErrorHandler = null;
+        BASEMAP_STATE.topplusHasSuccessfulLoad = false;
         BASEMAP_STATE.tileErrorCount = 0;
       }
       function showBasemapWarning(message){
@@ -297,10 +301,11 @@
         if(id === 'topplusopen'){
           return L.tileLayer('https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web/default/WEBMERCATOR/{z}/{y}/{x}.png', {
             minZoom: 0,
-            maxZoom: 19,
-            maxNativeZoom: 19,
+            maxZoom: TOPPLUSOPEN_MAX_ZOOM,
+            maxNativeZoom: TOPPLUSOPEN_MAX_ZOOM,
             attribution: TOPPLUSOPEN_ATTRIBUTION,
-            detectRetina: false
+            detectRetina: false,
+            noWrap: true
           });
         }
         return L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -312,6 +317,25 @@
           detectRetina: !isMobileView()
         });
       }
+      function syncMapMaxZoomForBasemap(id){
+        if(!MS.map || typeof MS.map.setMaxZoom !== 'function'){ return; }
+        if(BASEMAP_STATE.mapDefaultMaxZoom === null && typeof MS.map.getMaxZoom === 'function'){
+          BASEMAP_STATE.mapDefaultMaxZoom = MS.map.getMaxZoom();
+        }
+        if(id === 'topplusopen'){
+          try{ MS.map.setMaxZoom(TOPPLUSOPEN_MAX_ZOOM); }catch(e){}
+          try{
+            var currentZoom = (typeof MS.map.getZoom === 'function') ? MS.map.getZoom() : 0;
+            if(typeof currentZoom === 'number' && currentZoom > TOPPLUSOPEN_MAX_ZOOM && typeof MS.map.setZoom === 'function'){
+              MS.map.setZoom(TOPPLUSOPEN_MAX_ZOOM, { animate: false });
+            }
+          }catch(e){}
+          return;
+        }
+        if(typeof BASEMAP_STATE.mapDefaultMaxZoom === 'number'){
+          try{ MS.map.setMaxZoom(BASEMAP_STATE.mapDefaultMaxZoom); }catch(e){}
+        }
+      }
       function fallbackFromTopPlusOpen(){
         if(BASEMAP_STATE.activeId !== 'topplusopen'){ return; }
         showBasemapWarning('TopPlusOpen derzeit nicht erreichbar – wechsle auf Positron.');
@@ -321,8 +345,10 @@
         if(!layer || typeof layer.on !== 'function'){ return; }
         clearTopPlusOpenMonitor();
         BASEMAP_STATE.monitorLayer = layer;
+        BASEMAP_STATE.topplusHasSuccessfulLoad = false;
         BASEMAP_STATE.tileErrorCount = 0;
         BASEMAP_STATE.monitorLoadHandler = function(){
+          BASEMAP_STATE.topplusHasSuccessfulLoad = true;
           BASEMAP_STATE.tileErrorCount = 0;
           if(BASEMAP_STATE.timeoutId){
             clearTimeout(BASEMAP_STATE.timeoutId);
@@ -340,7 +366,7 @@
           layer.on('tileerror', BASEMAP_STATE.monitorErrorHandler);
         }catch(e){}
         BASEMAP_STATE.timeoutId = setTimeout(function(){
-          if(BASEMAP_STATE.activeId === 'topplusopen'){ fallbackFromTopPlusOpen(); }
+          if(BASEMAP_STATE.activeId === 'topplusopen' && !BASEMAP_STATE.topplusHasSuccessfulLoad){ fallbackFromTopPlusOpen(); }
         }, TOPPLUSOPEN_TIMEOUT_MS);
       }
       function applyBasemapById(id, options){
@@ -352,6 +378,7 @@
         }
         var sameIdActive = normalized === BASEMAP_STATE.activeId && BASEMAP_STATE.activeLayer && MS.map.hasLayer(BASEMAP_STATE.activeLayer);
         if(sameIdActive){
+          syncMapMaxZoomForBasemap(normalized);
           if(opts.updateUrl){ updateBasemapUrlParam(normalized); }
           if(opts.persist){ persistBasemapToStorage(normalized); }
           return true;
@@ -366,13 +393,8 @@
         try{ nextLayer.addTo(MS.map); }catch(e){ return false; }
         BASEMAP_STATE.activeLayer = nextLayer;
         BASEMAP_STATE.activeId = normalized;
+        syncMapMaxZoomForBasemap(normalized);
         if(normalized === 'topplusopen'){
-          try{
-            var currentZoom = (typeof MS.map.getZoom === 'function') ? MS.map.getZoom() : 0;
-            if(typeof currentZoom === 'number' && currentZoom > 19 && typeof MS.map.setZoom === 'function'){
-              MS.map.setZoom(19, { animate: false });
-            }
-          }catch(e){}
           monitorTopPlusOpenLayer(nextLayer);
         }
         if(opts.updateUrl){ updateBasemapUrlParam(normalized); }
@@ -381,6 +403,9 @@
       }
       function initBasemapRuntime(){
         if(!MS.map){ return; }
+        if(BASEMAP_STATE.mapDefaultMaxZoom === null && typeof MS.map.getMaxZoom === 'function'){
+          BASEMAP_STATE.mapDefaultMaxZoom = MS.map.getMaxZoom();
+        }
         if(!BASEMAP_STATE.initialLayer){ BASEMAP_STATE.initialLayer = detectCurrentBasemapLayer(); }
         BASEMAP_STATE.activeLayer = BASEMAP_STATE.initialLayer;
         BASEMAP_STATE.activeId = BASEMAP_DEFAULT_ID;
@@ -395,6 +420,7 @@
           return;
         }
         persistBasemapToStorage(BASEMAP_DEFAULT_ID);
+        syncMapMaxZoomForBasemap(BASEMAP_DEFAULT_ID);
         if(basemapFromUrl === BASEMAP_DEFAULT_ID){ updateBasemapUrlParam(BASEMAP_DEFAULT_ID); }
       }
       syncViewportCssVars();
