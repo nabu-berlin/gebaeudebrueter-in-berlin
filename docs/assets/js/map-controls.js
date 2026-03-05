@@ -295,7 +295,7 @@
       function createBasemapLayer(id){
         if(!window.L || typeof L.tileLayer !== 'function'){ return null; }
         if(id === 'topplusopen'){
-          return L.tileLayer('https://sgx.geodatenzentrum.de/wmts_topplus_open?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=web&STYLE=default&TILEMATRIXSET=WEBMERCATOR&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png', {
+          return L.tileLayer('https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web/default/WEBMERCATOR/{z}/{y}/{x}.png', {
             minZoom: 0,
             maxZoom: 19,
             maxNativeZoom: 19,
