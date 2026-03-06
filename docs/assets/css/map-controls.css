@@ -723,6 +723,7 @@ body.ms-mobile-redesign .ms-control {
   box-shadow: 0 0 0 2px #fff;
 }
 .ms-fab-filter.is-active .ms-fab-badge { display: block; }
+.ms-fab-layer .ms-fab-badge { display: none !important; }
 
 #ms-bottom-sheet {
   z-index: 10060 !important;

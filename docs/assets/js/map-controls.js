@@ -1225,18 +1225,17 @@
         updateFilterFabIndicator();
       }
       function updateFilterFabIndicator(){
-        var filterFab = document.getElementById('fab-filter');
-        if(!filterFab){ return; }
+        var funnelFab = document.getElementById('fab-filter');
         var speciesBoxes = document.querySelectorAll('.ms-filter-species');
         var statusBoxes = document.querySelectorAll('.ms-filter-status');
-        if(!speciesBoxes.length || !statusBoxes.length){
-          filterFab.classList.remove('is-active');
+        if(!funnelFab || !speciesBoxes.length || !statusBoxes.length){
+          if(funnelFab) funnelFab.classList.remove('is-active');
           return;
         }
         var speciesChecked = Array.prototype.filter.call(speciesBoxes, function(el){ return el.checked; }).length;
         var statusChecked = Array.prototype.filter.call(statusBoxes, function(el){ return el.checked; }).length;
-        var allSelected = speciesChecked === speciesBoxes.length && statusChecked === statusBoxes.length;
-        filterFab.classList.toggle('is-active', !allSelected);
+        var allSelected = (speciesChecked === speciesBoxes.length) && (statusChecked === statusBoxes.length);
+        funnelFab.classList.toggle('is-active', !allSelected);
       }
       function wireFilters(){
         function bindChange(el, handler){
