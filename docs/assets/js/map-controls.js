@@ -182,6 +182,68 @@
         var shouldHide = isModalOpenById('ms-info-modal') || isModalOpenById('ms-submit-modal') || isModalOpenById('ms-basemap-modal') || hasVisibleMapPopup();
         ctrl.classList.toggle('ms-overlay-hidden', shouldHide);
       }
+      var ATTRIB_PREV_TABINDEX_ATTR = 'data-ms-prev-tabindex';
+      var ATTRIB_NO_TABINDEX_SENTINEL = '__ms-no-tabindex__';
+      var attributionUnlockTimer = null;
+      function setAttributionHidden(hide){
+        if(!document.body || !document.body.classList){ return; }
+        var shouldHide = !!hide;
+        document.body.classList.toggle('ms-hide-attrib', shouldHide);
+
+        var attributionRoot = document.querySelector('.leaflet-bottom.leaflet-left');
+        if(!attributionRoot){ return; }
+
+        attributionRoot.setAttribute('aria-hidden', shouldHide ? 'true' : 'false');
+        try{
+          if('inert' in attributionRoot){ attributionRoot.inert = shouldHide; }
+          else if(shouldHide){ attributionRoot.setAttribute('inert', ''); }
+          else { attributionRoot.removeAttribute('inert'); }
+        }catch(e){}
+
+        var links = attributionRoot.querySelectorAll('a[href]');
+        links.forEach(function(link){
+          if(shouldHide){
+            if(!link.hasAttribute(ATTRIB_PREV_TABINDEX_ATTR)){
+              if(link.hasAttribute('tabindex')){ link.setAttribute(ATTRIB_PREV_TABINDEX_ATTR, link.getAttribute('tabindex') || ''); }
+              else { link.setAttribute(ATTRIB_PREV_TABINDEX_ATTR, ATTRIB_NO_TABINDEX_SENTINEL); }
+            }
+            link.setAttribute('tabindex', '-1');
+            link.setAttribute('aria-hidden', 'true');
+            link.setAttribute('aria-disabled', 'true');
+          } else {
+            var prevTabindex = link.getAttribute(ATTRIB_PREV_TABINDEX_ATTR);
+            if(prevTabindex !== null){
+              if(prevTabindex === ATTRIB_NO_TABINDEX_SENTINEL){ link.removeAttribute('tabindex'); }
+              else { link.setAttribute('tabindex', prevTabindex); }
+              link.removeAttribute(ATTRIB_PREV_TABINDEX_ATTR);
+            } else if(link.getAttribute('tabindex') === '-1'){
+              link.removeAttribute('tabindex');
+            }
+            link.removeAttribute('aria-hidden');
+            link.removeAttribute('aria-disabled');
+          }
+        });
+      }
+      function holdAttributionInert(durationMs){
+        var delay = Math.max(0, Number(durationMs) || 0);
+        if(attributionUnlockTimer){
+          clearTimeout(attributionUnlockTimer);
+          attributionUnlockTimer = null;
+        }
+        setAttributionHidden(true);
+        attributionUnlockTimer = setTimeout(function(){
+          attributionUnlockTimer = null;
+          syncAttributionVisibility();
+        }, delay);
+      }
+      function hasOpenMobilePanels(){
+        var sideSheet = document.getElementById('ms-side-sheet');
+        var bottomSheet = document.getElementById('ms-bottom-sheet');
+        return !!((sideSheet && sideSheet.classList.contains('is-open')) || (bottomSheet && bottomSheet.classList.contains('open')));
+      }
+      function syncAttributionVisibility(){
+        setAttributionHidden(hasOpenMobilePanels());
+      }
       function hideModalById(id){
         var modal = document.getElementById(id);
         if(!modal){ return; }
@@ -207,6 +269,8 @@
           navToggle.setAttribute('aria-label', 'Menü öffnen');
         }
         try{ document.body.classList.remove('ms-side-open'); }catch(e){}
+        setAttributionHidden(false);
+        syncAttributionVisibility();
       }
       function closeBottomSheetDom(){
         var sheet = document.getElementById('ms-bottom-sheet');
@@ -222,6 +286,7 @@
           fabStack.classList.remove('is-hidden');
           fabStack.setAttribute('aria-hidden', 'false');
         }
+        holdAttributionInert(220);
       }
       function closeGbModalOverlay(){
         var overlay = document.getElementById('gbModalOverlay');
@@ -1209,18 +1274,35 @@
         updateFilterFabIndicator();
       }
       function updateFilterFabIndicator(){
-        var filterFab = document.getElementById('fab-filter');
-        if(!filterFab){ return; }
+        var funnelFab = document.getElementById('fab-filter');
+        var layerFab = document.getElementById('fab-layer');
         var speciesBoxes = document.querySelectorAll('.ms-filter-species');
         var statusBoxes = document.querySelectorAll('.ms-filter-status');
-        if(!speciesBoxes.length || !statusBoxes.length){
-          filterFab.classList.remove('is-active');
+
+        if(layerFab){
+          var legacyLayerBadge = layerFab.querySelector('.ms-fab-badge');
+          while(legacyLayerBadge){
+            legacyLayerBadge.remove();
+            legacyLayerBadge = layerFab.querySelector('.ms-fab-badge');
+          }
+          layerFab.classList.remove('is-active');
+        }
+
+        if(funnelFab && !funnelFab.querySelector('.ms-fab-badge')){
+          var badge = document.createElement('span');
+          badge.className = 'ms-fab-badge';
+          badge.setAttribute('aria-hidden', 'true');
+          funnelFab.appendChild(badge);
+        }
+
+        if(!funnelFab || !speciesBoxes.length || !statusBoxes.length){
+          if(funnelFab) funnelFab.classList.remove('is-active');
           return;
         }
         var speciesChecked = Array.prototype.filter.call(speciesBoxes, function(el){ return el.checked; }).length;
         var statusChecked = Array.prototype.filter.call(statusBoxes, function(el){ return el.checked; }).length;
-        var allSelected = speciesChecked === speciesBoxes.length && statusChecked === statusBoxes.length;
-        filterFab.classList.toggle('is-active', !allSelected);
+        var allSelected = (speciesChecked === speciesBoxes.length) && (statusChecked === statusBoxes.length);
+        funnelFab.classList.toggle('is-active', !allSelected);
       }
       function wireFilters(){
         function bindChange(el, handler){
@@ -1279,14 +1361,47 @@
 
         var applyMobile = document.getElementById('ms-apply-filters');
         var applyDesktop = document.getElementById('ms-apply-desktop');
-        if(applyMobile){
-          applyMobile.addEventListener('click', function(){
-            applyFilters();
-            if(sheet){ sheet.classList.remove('open'); sheet.setAttribute('aria-hidden', 'true'); }
+        var lastApplyTs = 0;
+        function stopApplyEventFlow(ev){
+          if(!ev){ return; }
+          if(ev.cancelable){ ev.preventDefault(); }
+          if(typeof ev.stopPropagation === 'function'){ ev.stopPropagation(); }
+          if(typeof ev.stopImmediatePropagation === 'function'){ ev.stopImmediatePropagation(); }
+        }
+        function runApplyAction(ev, closeSheetAfterApply){
+          stopApplyEventFlow(ev);
+          var now = Date.now();
+          if(now - lastApplyTs < 500){ return; }
+          lastApplyTs = now;
+          applyFilters();
+          if(closeSheetAfterApply){ closeBottomSheetDom(); }
+        }
+
+        if(sheet){
+          var actionNodes = sheet.querySelectorAll('.ms-sheet-actions button, .ms-sheet-actions a');
+          actionNodes.forEach(function(node){
+            node.addEventListener('pointerdown', function(ev){
+              if(!sheet.classList.contains('open')){ return; }
+              if(typeof ev.stopPropagation === 'function'){ ev.stopPropagation(); }
+            }, true);
+            node.addEventListener('touchstart', function(ev){
+              if(!sheet.classList.contains('open')){ return; }
+              if(typeof ev.stopPropagation === 'function'){ ev.stopPropagation(); }
+            }, { capture: true, passive: true });
+            node.addEventListener('click', function(ev){
+              if(!sheet.classList.contains('open')){ return; }
+              if(typeof ev.stopPropagation === 'function'){ ev.stopPropagation(); }
+            }, true);
           });
         }
+
+        if(applyMobile){
+          applyMobile.addEventListener('touchend', function(ev){ runApplyAction(ev, true); }, { passive: false });
+          applyMobile.addEventListener('click', function(ev){ runApplyAction(ev, true); });
+        }
         if(applyDesktop){
-          applyDesktop.addEventListener('click', function(){ applyFilters(); });
+          applyDesktop.addEventListener('touchend', function(ev){ runApplyAction(ev, false); }, { passive: false });
+          applyDesktop.addEventListener('click', function(ev){ runApplyAction(ev, false); });
         }
 
         document.querySelectorAll('.ms-accordion-toggle').forEach(function(toggle){
@@ -1323,7 +1438,11 @@
       (function(){
         var sheet = document.getElementById('ms-bottom-sheet');
         if(!sheet) return;
-        sheet.addEventListener('click', function(ev){ if(ev.target === sheet){ sheet.classList.remove('open'); sheet.setAttribute('aria-hidden', 'true'); } });
+        sheet.addEventListener('click', function(ev){
+          if(ev.target === sheet){
+            closeBottomSheetDom();
+          }
+        });
         // also close sheet when tapping the map area (leaflet container) or touching outside the sheet
         function closeIfMapTap(ev){
           try{
@@ -1333,7 +1452,9 @@
             // if tap/click occurred inside the sheet, ignore
             if(target.closest && target.closest('.ms-bottom-sheet')) return;
             // if tap/click occurred inside a leaflet map container, close the sheet
-            if(target.closest && target.closest('.leaflet-container')){ sheet.classList.remove('open'); sheet.setAttribute('aria-hidden', 'true'); }
+            if(target.closest && target.closest('.leaflet-container')){
+              closeBottomSheetDom();
+            }
           }catch(e){}
         }
         document.addEventListener('click', closeIfMapTap, {passive:true});
@@ -1677,6 +1798,7 @@
           mobileRefs.bottomSheet.style.removeProperty('will-change');
           mobileRefs.bottomSheet.style.removeProperty('transform');
           syncFabStackVisibility();
+          holdAttributionInert(220);
         }
 
         function openBottomSheet(){
@@ -1685,6 +1807,7 @@
           mobileRefs.bottomSheet.classList.add('open');
           mobileRefs.bottomSheet.setAttribute('aria-hidden', 'false');
           mobileRefs.bottomSheet.style.removeProperty('transform');
+          setAttributionHidden(true);
           var speciesAccordion = document.getElementById('ms-species-accordion-content');
           var statusAccordion = document.getElementById('ms-status-accordion-content');
           if(speciesAccordion){ speciesAccordion.classList.add('open'); }
@@ -1705,6 +1828,8 @@
           mobileRefs.navToggle.setAttribute('aria-expanded', 'false');
           mobileRefs.navToggle.setAttribute('aria-label', 'Menü öffnen');
           document.body.classList.remove('ms-side-open');
+          setAttributionHidden(false);
+          syncAttributionVisibility();
           if(returnFocus && mobileRefs.__lastOpener && typeof mobileRefs.__lastOpener.focus === 'function'){
             mobileRefs.__lastOpener.focus();
           }
@@ -1723,6 +1848,7 @@
           mobileRefs.navToggle.setAttribute('aria-expanded', 'true');
           mobileRefs.navToggle.setAttribute('aria-label', 'Menü schließen');
           document.body.classList.add('ms-side-open');
+          setAttributionHidden(true);
           var focusables = Array.prototype.slice.call(mobileRefs.sideSheet.querySelectorAll('button, a[href], [tabindex]:not([tabindex="-1"])')).filter(function(el){
             return !el.disabled && el.getAttribute('aria-hidden') !== 'true';
           });
@@ -2105,6 +2231,7 @@
             initDesktop();
             teardownMobile();
           }
+          syncAttributionVisibility();
           safeInvalidateMap();
         }
 
@@ -2119,6 +2246,7 @@
         window.addEventListener('resize', applyViewportGate, { passive: true });
         window.addEventListener('orientationchange', function(){
           applyViewportGate();
+          syncAttributionVisibility();
           safeInvalidateMap();
         }, { passive: true });
       })();
@@ -2135,10 +2263,13 @@
         bindMarkersForViewportMode();
         removeNativeMapControlsOnMobile();
         addLocateMapControl();
+        syncAttributionVisibility();
         window.addEventListener('resize', function(){
           removeNativeMapControlsOnMobile();
           addLocateMapControl();
+          syncAttributionVisibility();
         }, { passive: true });
+        window.addEventListener('orientationchange', syncAttributionVisibility, { passive: true });
         if(MS.map && typeof MS.map.on === 'function'){
           MS.map.on('popupopen', function(e){
             try{
