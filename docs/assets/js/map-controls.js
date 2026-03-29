@@ -1,6 +1,6 @@
 (function(){
       try { window.__MS_CONTROLS_READY = true; } catch(e) {}
-      var SPECIES_COLORS_JS = {"Mauersegler": "#1f78b4", "Sperling": "#33a02c", "Schwalbe": "#6a3d9a", "Fledermaus": "#000000", "Star": "#b15928", "Andere": "#ff7f00"};
+      var SPECIES_COLORS_JS = {"Mauersegler": "#1f78b4", "Sperling": "#33a02c", "Schwalbe": "#6a3d9a", "Fledermaus": "#000000", "Star": "#b15928", "Andere": "#ff7f00", "unbekannt": "#7a7a7a"};
       var STATUS_INFO_JS = {"verloren": {"label": "verlorene Niststätte", "color": "#616161", "short": "×"}, "sanierung": {"label": "Sanierung", "color": "#e31a1c", "short": "S"}, "ersatz": {"label": "Ersatzmaßn.", "color": "#00897b", "short": "E"}, "kontrolle": {"label": "Kontrolle", "color": "#1976d2", "short": "K"}, "none": {"label": "Ohne Status", "color": "#9e9e9e", "short": "—"}};
       var ALL_SPECIES = Object.keys(SPECIES_COLORS_JS);
       var ALL_STATUS = Object.keys(STATUS_INFO_JS);
@@ -1800,8 +1800,12 @@
         target.classList.add('ms-width-match');
         return true;
       }
+      function isUnknownOnly(species){
+        return !!(species && species.length === 1 && species[0] === 'unbekannt');
+      }
       function computeGradient(species){
         if(!species || !species.length){ return '#cccccc'; }
+        if(isUnknownOnly(species)){ return 'transparent'; }
         var n = Math.min(species.length, 4);
         var seg = 360 / n;
         var stops = [];
@@ -1825,6 +1829,7 @@
           var hasNoStatus = !st || st.length === 0;
           var wantsNoStatus = selectedStatus.indexOf('none') !== -1;
           var stSel = statusAll ? st : (selectedStatus.length ? intersection(st, selectedStatus) : []);
+          var unknownOnly = isUnknownOnly(spSel);
           var color = 'transparent';
           if(statusAll){
             color = m._ms.statusColor || '#9e9e9e';
@@ -1834,6 +1839,7 @@
           } else if(wantsNoStatus && hasNoStatus){
             color = (STATUS_INFO_JS['none'] && STATUS_INFO_JS['none'].color) || (m._ms.statusColor || '#9e9e9e');
           }
+          if(unknownOnly){ color = '#9e9e9e'; }
           inner.style.outline = '2px solid ' + color;
           var badge = inner.querySelector('.ms-badge'); if(badge){ badge.classList.toggle('ms-badge-visible', !!stSel.length); badge.style.background = color; }
         }
