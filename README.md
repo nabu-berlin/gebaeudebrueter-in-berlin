@@ -1,39 +1,48 @@
-# Gebäudebrüter in Berlin – GitHub Pages (Display)
+# Gebäudebrüter in Berlin – Live (GitHub Pages)
 
-## Diese Version ersetzt die ältere Version "Gebaeudebrueter-test"
+Dieses Repository enthält die öffentlich sichtbare Kartenanzeige.
+Deployments erfolgen erst nach erfolgreicher Staging-Prüfung und immer per explizitem zweiten Befehl.
 
-Dieses Repository enthält nur die statischen Dateien für die Veröffentlichung der Karte über GitHub Pages.
+## Gesamtworkflow (Kurzüberblick)
 
-Quelle der in der Karte angezeigten Daten ist die **Online-Datenbank "Gebäudebrüter in Berlin"** des Projekts Gebäudebrüter im **NABU Landesverband Berlin** und der NABU Bezirksgruppe Steglitz-Zehlendorf.
-ULR: http://gebaeudebrueter-in-berlin.de/index.php
+1. Lokale Generierung im Generator-Repo.
+2. Veröffentlichung in das Staging-Repo (`main` + `docs`).
+3. Manuelle Kontrolle der Staging-Seite.
+4. Bei Erfolg: explizites Publish in dieses Live-Repo.
 
-## Inhalt
+## Zielsetzung dieses Repos
 
-- `docs/index.html` (Weiterleitung)
-- `docs/GebaeudebrueterMultiMarkers.html` (aktive Karte)
-- `docs/assets/` (JS/CSS-Assets)
-- `docs/images/` (Bilder)
-- `docs/gb_feedback.js`
-- `docs/smoke-check.md`
+- Stabile, öffentliche Darstellung der aktuellen Karte.
+- Keine experimentellen Zwischenschritte im Live-Stand.
+- Klarer Freigabeprozess über Staging.
 
-## Generator-Repository
+## Funktionen / Struktur
 
-Die Datenpipeline (Scraping, Bereinigung, Geocoding, Transformation, Kartengenerierung) wurde ausgelagert nach:
+- `docs/GebaeudebrueterMultiMarkers.html` – aktuelle Live-Karte.
+- `docs/generated/<sha>/` – versionsierte Build-Artefakte aus Staging.
+- `docs/assets/` – bestehende Live-Assets; werden beim `publish-live` nicht überschrieben.
 
-- `https://github.com/nabu-berlin/gebaeudebrueter-map-generator`
+## Prozessschritte (Freigabe)
 
-Dort werden neue Karten erzeugt und anschließend nach `docs/` dieses Repositories publiziert.
-
-## Lokale Vorschau
+Der Live-Deploy wird aus dem Generator-Repo gestartet:
 
 ```powershell
-python -m http.server 8000
+python scripts/run_full_pipeline.py --verbose publish-live --sha <sha>
 ```
 
-Dann öffnen:
+Der Befehl kopiert aus Staging nach Live:
 
-- `http://localhost:8000/docs/`
-- oder direkt `http://localhost:8000/docs/GebaeudebrueterMultiMarkers.html`
+- `docs/GebaeudebrueterMultiMarkers.html`
+- `docs/generated/<sha>/`
 
-## Feedback
-Anregungen, Kritik und Fehlermeldungen unter "Issues" posten.
+Danach wird in diesem Repo automatisch ausgeführt:
+
+- `git add .`
+- `git commit -m "Deploy map <sha>"`
+- `git push origin main`
+- `git pull origin main`
+
+## Handlungsanweisungen
+
+- Live nur nach dokumentierter manueller Staging-Prüfung freigeben.
+- Bei Problemen kein `publish-live` ausführen; stattdessen im Generator korrigieren und neu stagen.
